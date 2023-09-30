@@ -64,6 +64,25 @@ nifpp::TERM mapflip_test(ErlNifEnv* env, ERL_NIF_TERM term)
     return make(env, outmap);
 }
 
+// Build a nested map
+nifpp::TERM nestedmap_test(ErlNifEnv* env, ERL_NIF_TERM )
+{
+	std::map<nifpp::str_atom, int> int_map{ {"a", 1} };
+    nifpp::TERM outmap = make(env, int_map);
+
+    // Add another entry to map
+    add_to_map(env, outmap, std::make_pair(str_atom("b"), "b"));
+
+    // Add a nested map
+    std::map<nifpp::str_atom, int> nested_map = {
+        {"a1" , 1},
+        {"b1" , 2}
+    };
+    add_to_map(env, outmap, std::make_pair(str_atom("c"), make(env, nested_map)));
+
+    return outmap;
+}
+
 // swap keys and values (unordered_map version.  I would templatize the abstract map type if I knew how)
 template<typename TK, typename TV>
 nifpp::TERM umapflip_test(ErlNifEnv* env, ERL_NIF_TERM term)
@@ -100,7 +119,7 @@ int tracetype::dtor_cnt;
 
 ERL_NIF_TERM nif_main(ErlNifEnv* env, nifpp::TERM term)
 {
-    
+
     str_atom cmd;
     nifpp::TERM cmddata;
     auto cmdtup=std::tie(cmd,cmddata);
@@ -323,6 +342,8 @@ ERL_NIF_TERM nif_main(ErlNifEnv* env, nifpp::TERM term)
     else if(cmd=="mapflipba") { return  mapflip_test<nifpp::str_atom, int>(env, cmddata); }
     else if(cmd=="mapflipbb") { return umapflip_test<nifpp::str_atom, int>(env, cmddata); }
 
+    else if(cmd=="nestedmap") { return nestedmap_test(env, cmddata); }
+
     // basic resource testing
     else if(cmd=="makeresint")
     {
@@ -447,32 +468,8 @@ static ERL_NIF_TERM invoke_nif(ErlNifEnv* env, [[maybe_unused]] int argc, const 
     }
 }
 
-/*
-static ERL_NIF_TERM foo_nif(ErlNifEnv* env, [[maybe_unused]] int argc, const ERL_NIF_TERM argv[])
-{
-    int x, ret;
-    if (!enif_get_int(env, argv[0], &x)) {
-        return enif_make_badarg(env);
-    }
-    ret = x*2;
-    return enif_make_int(env, ret);
-}
-
-static ERL_NIF_TERM bar_nif(ErlNifEnv* env, [[maybe_unused]] int argc, const ERL_NIF_TERM argv[])
-{
-    int y, ret;
-    if (!enif_get_int(env, argv[0], &y)) {
-        return enif_make_badarg(env);
-    }
-    ret = y*3;
-    return enif_make_int(env, ret);
-}
-*/
-
 static ErlNifFunc nif_funcs[] = {
     {"invoke_nif", 1, invoke_nif, 0},
-    //{"foo_nif",    1, foo_nif,    0},
-    //{"bar_nif",    1, bar_nif,    0},
 };
 
 ERL_NIF_INIT(nifpptest, nif_funcs, load, NULL, NULL, NULL)
