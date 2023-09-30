@@ -297,7 +297,7 @@ inline TERM make(ErlNifEnv *, const atom &var)
 }
 
 
-// std::string
+// "std::string" and "const char*"
 inline bool get(ErlNifEnv* env, ERL_NIF_TERM term, std::string& var, ErlNifCharEncoding encoding = ERL_NIF_LATIN1)
 {
     // The implementation below iterates through the list twice.  It may
@@ -334,6 +334,15 @@ inline bool get(ErlNifEnv* env, ERL_NIF_TERM term, std::string& var, ErlNifCharE
 inline TERM make(ErlNifEnv* env, const std::string& var, ErlNifCharEncoding encoding = ERL_NIF_LATIN1)
 {
     return TERM(enif_make_string_len(env, var.data(), var.size(), encoding));
+}
+template <int N>
+inline TERM make(ErlNifEnv* env, const char (&var)[N], ErlNifCharEncoding encoding = ERL_NIF_LATIN1)
+{
+    return TERM(enif_make_string_len(env, var, N-1, encoding));
+}
+inline TERM make(ErlNifEnv* env, const char* var, ErlNifCharEncoding encoding = ERL_NIF_LATIN1)
+{
+    return TERM(enif_make_string_len(env, var, strlen(var), encoding));
 }
 
 

@@ -1,3 +1,4 @@
+.vscode/
 examples/*.beam
 **/*.o
 **/*.so
