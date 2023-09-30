@@ -1,10 +1,10 @@
 /*
    tuple_twiddle_c.c - C reference version of tuple manipulation
 */
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpedantic"
+//#pragma GCC diagnostic push
+//#pragma GCC diagnostic ignored "-Wpedantic"
 #include <erl_nif.h>
-#pragma GCC diagnostic pop
+//#pragma GCC diagnostic pop
 
 /*
   Convert tuple of form {{1,2},3} to {3,{2,1}}.  Fully decode and recode ints.

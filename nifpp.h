@@ -27,13 +27,10 @@
 #ifndef NIFPP_H
 #define NIFPP_H
 
-// Suppress warning
+// If you are getting the following warning, add "-std=C99" to CFLAGS
 // erlang/26.0/erts-14.0/include/erl_nif.h:192:21: warning: comma at end of enumerator list [-Wpedantic]
 //  192 |     ERL_NIF_UTF8 = 2,
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpedantic"
 #include <erl_nif.h>
-#pragma GCC diagnostic pop
 
 // Only define map functions if they are available
 #define NIFPP_HAS_MAPS ((ERL_NIF_MAJOR_VERSION > 2) || (ERL_NIF_MAJOR_VERSION==2 && ERL_NIF_MINOR_VERSION >= 6))
@@ -115,7 +112,6 @@ public:
         val = v;
         return true;
     }
-
 
     bool initialized() const { return val != 0; }
 
