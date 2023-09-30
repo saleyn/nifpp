@@ -67,20 +67,18 @@ nifpp::TERM mapflip_test(ErlNifEnv* env, ERL_NIF_TERM term)
 // Build a nested map
 nifpp::TERM nestedmap_test(ErlNifEnv* env, ERL_NIF_TERM )
 {
-	std::map<nifpp::str_atom, int> int_map = {
-        {"a", 1}
-	};
+	std::map<nifpp::str_atom, int> int_map{ {"a", 1} };
     nifpp::TERM outmap = make(env, int_map);
 
     // Add another entry to map
-    add_to_map(env, std::make_pair(str_atom("b"), "b"), outmap);
+    add_to_map(env, outmap, std::make_pair(str_atom("b"), "b"));
 
     // Add a nested map
     std::map<nifpp::str_atom, int> nested_map = {
         {"a1" , 1},
         {"b1" , 2}
     };
-    add_to_map(env, std::make_pair(str_atom("c"), make(env, nested_map)), outmap);
+    add_to_map(env, outmap, std::make_pair(str_atom("c"), make(env, nested_map)));
 
     return outmap;
 }
@@ -121,12 +119,12 @@ int tracetype::dtor_cnt;
 
 ERL_NIF_TERM nif_main(ErlNifEnv* env, nifpp::TERM term)
 {
-    
+
     str_atom cmd;
     nifpp::TERM cmddata;
     auto cmdtup=std::tie(cmd,cmddata);
     get_throws(env, term, cmdtup);
-    cout << "cmd = " << cmd << endl;
+    cout << "cmd = " << cmd << "\r\n";
     if(cmd=="atom2")
     {
         str_atom in;
@@ -439,7 +437,7 @@ ERL_NIF_TERM nif_main(ErlNifEnv* env, nifpp::TERM term)
 
 extern "C" {
 
-static int load(ErlNifEnv* env, void** priv, ERL_NIF_TERM load_info)
+static int load(ErlNifEnv* env, [[maybe_unused]] void** priv, [[maybe_unused]] ERL_NIF_TERM load_info)
 {
     register_resource<std::string>(env, nullptr, "std::string");
     register_resource<int>(env, nullptr, "int");
@@ -447,7 +445,7 @@ static int load(ErlNifEnv* env, void** priv, ERL_NIF_TERM load_info)
     return 0;
 }
 
-static ERL_NIF_TERM invoke_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+static ERL_NIF_TERM invoke_nif(ErlNifEnv* env, [[maybe_unused]] int argc, const ERL_NIF_TERM argv[])
 {
     try
     {
@@ -459,7 +457,7 @@ static ERL_NIF_TERM invoke_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv
     }
 }
 
-static ERL_NIF_TERM foo_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+static ERL_NIF_TERM foo_nif(ErlNifEnv* env, [[maybe_unused]] int argc, const ERL_NIF_TERM argv[])
 {
     int x, ret;
     if (!enif_get_int(env, argv[0], &x)) {
@@ -469,7 +467,7 @@ static ERL_NIF_TERM foo_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
     return enif_make_int(env, ret);
 }
 
-static ERL_NIF_TERM bar_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
+static ERL_NIF_TERM bar_nif(ErlNifEnv* env, [[maybe_unused]] int argc, const ERL_NIF_TERM argv[])
 {
     int y, ret;
     if (!enif_get_int(env, argv[0], &y)) {
@@ -480,7 +478,7 @@ static ERL_NIF_TERM bar_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[])
 }
 
 static ErlNifFunc nif_funcs[] = {
-    {"invoke_nif", 1, invoke_nif},
+    {"invoke_nif", 1, invoke_nif, 0},
 };
 
 ERL_NIF_INIT(nifpptest, nif_funcs, load, NULL, NULL, NULL)

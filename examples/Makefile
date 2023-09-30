@@ -1,7 +1,7 @@
 ERLANG_PATH = $(shell erl -eval 'io:format("~s", [lists:concat([code:root_dir(), "/erts-", erlang:system_info(version), "/include"])])' -s init stop -noshell)
 NIF_INCLUDE:=-I../ -I$(ERLANG_PATH)
 
-CFLAGS = -g -O3 -ansi -pedantic -Wall -Wextra $(NIF_INCLUDE)
+CFLAGS = -g -O3 -ansi -Wall -Wextra $(NIF_INCLUDE)
 
 ifneq ($(OS),Windows_NT)
 	CFLAGS += -fPIC
