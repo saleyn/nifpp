@@ -1,7 +1,6 @@
 all: compile test
 
-compile:
-	make -C examples
+compile test clean disassemble:
+	make -C test $@
 
-test:
-	make -C examples $@
+.PHONY: test

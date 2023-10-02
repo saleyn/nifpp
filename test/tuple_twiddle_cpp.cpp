@@ -15,10 +15,11 @@ extern "C" {
 static ERL_NIF_TERM twiddle_nif(ErlNifEnv* env, [[maybe_unused]] int argc, const ERL_NIF_TERM argv[])
 {
     int a,b,c;
-    auto tup_in  = make_tuple( make_tuple(ref(a), ref(b)), ref(c) );
-    return nifpp::get(env, argv[0], tup_in)
-         ? nifpp::make(env, make_tuple( c, make_tuple(b, a)))
-         : enif_make_badarg(env);
+    auto tup_in = make_tuple(make_tuple(ref(a), ref(b)), ref(c));
+    if (!nifpp::get(env, argv[0], tup_in)) [[unlikely]]
+        return enif_make_badarg(env);
+
+    return nifpp::make(env, make_tuple( c, make_tuple(b, a)));
 }
 
 static ErlNifFunc nif_funcs[] = { {"twiddle", 1, twiddle_nif, 0} };

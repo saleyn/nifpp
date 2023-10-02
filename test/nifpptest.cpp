@@ -450,6 +450,7 @@ extern "C" {
 
 static int load(ErlNifEnv* env, [[maybe_unused]] void** priv, [[maybe_unused]] ERL_NIF_TERM load_info)
 {
+    nifpp::initialize_known_atoms(env);
     register_resource<std::string>(env, nullptr, "std::string");
     register_resource<int>(env, nullptr, "int");
     register_resource<tracetype>(env, nullptr, "tracetype");

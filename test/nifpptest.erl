@@ -9,7 +9,7 @@ init() ->
 invoke_nif(_X) ->
     exit(nif_library_not_loaded).
 
-    
+
 start() ->
     test(),
     benchmark(),
@@ -20,18 +20,32 @@ do_times(_F, 0) ->
 do_times(F, N) ->
     F(),
     do_times(F,N-1).
-    
+
 benchmark() ->
     Reps = 1000,
     InnerReps = 10000,
     Input = {{1,2},3},
+    Self = self(),
+    % force load modules
     tuple_twiddle_c:twiddle(Input),
-    io:format("Benchmarking tuple_twiddle_c:twiddle()~n", []),
-    test_avg(fun() -> do_times(fun() -> tuple_twiddle_c:twiddle(Input) end, InnerReps) end, Reps),
-    tuple_twiddle_cpp:twiddle(Input), % force module load
-    io:format("Benchmarking tuple_twiddle_cpp:twiddle()~n", []),
-    test_avg(fun() -> do_times(fun() -> tuple_twiddle_cpp:twiddle(Input) end, InnerReps) end, Reps).
-    
+    tuple_twiddle_cpp:twiddle(Input),
+
+    spawn_link(fun() ->
+        Self ! {cpp, test_avg(fun() -> do_times(fun() -> tuple_twiddle_cpp:twiddle(Input) end, InnerReps) end, Reps)}
+    end),
+
+    spawn_link(fun() ->
+        Self ! {c, test_avg(fun() -> do_times(fun() -> tuple_twiddle_c:twiddle(Input) end, InnerReps) end, Reps)}
+    end),
+
+    io:format("~-17s |   Min |   Max | Median | Average | (all times in µs)\n", ["Benchmark"]),
+    io:format("------------------+-------+-------+--------+---------+\n", []),
+    receive {cpp, Stats1} -> print("tuple_twiddle_cpp", Stats1) after 60000 -> error(timeout_twiddle_cpp) end,
+    receive {c,   Stats2} -> print("tuple_twiddle_c",   Stats2) after 60000 -> error(timeout_twiddle_c)   end.
+
+print(Test, #{min := Min, max := Max, med := Med, avg := Avg}) ->
+    io:format("~-17s | ~5w | ~5w | ~6w | ~7w |\n", [Test, Min, Max, Med, Avg]).
+
 test_avg(F, N) when N > 0 ->
     erlang:garbage_collect(),
     L = test_loop(F, N, []),
@@ -40,18 +54,14 @@ test_avg(F, N) when N > 0 ->
     Max = lists:max(L),
     Med = lists:nth(round((Length / 2)), lists:sort(L)),
     Avg = round(lists:foldl(fun(X, Sum) -> X + Sum end, 0, L) / Length),
-    io:format("Range: ~b - ~b mics~n"
-              "Median: ~b mics~n"
-              "Average: ~b mics~n",
-              [Min, Max, Med, Avg]),
-    Med.
+    #{min => Min, max => Max, med => Med, avg => Avg}.
 
 test_loop(_F, 0, List) ->
     List;
 test_loop(F, N, List) ->
     {T, _Result} = timer:tc(F),
     test_loop(F, N - 1, [T|List]).
-    
+
 atom_test_() ->
     [
         ?_assertEqual( abcabc, invoke_nif({atom2, abc})),
@@ -67,28 +77,28 @@ string_test_() ->
         ?_assertEqual( "abc123abc123", invoke_nif({string2, <<"abc123">>})),
         ?_assertError( badarg, invoke_nif({string2, 123}))
         ].
-        
+
 double_test_() ->
     [
         ?_assertEqual( 246.0, invoke_nif({double2, 123.0})),
         ?_assertEqual( 1000.0, invoke_nif({double2, 500.0})),
         ?_assertError( badarg, invoke_nif({double2, abc}))
         ].
-        
+
 int_test_() ->
     [
         ?_assertEqual( 246, invoke_nif({int2, 123})),
         ?_assertEqual( 1000, invoke_nif({int2, 500})),
         ?_assertError( badarg, invoke_nif({int2, abc}))
         ].
-        
+
 uint_test_() ->
     [
         ?_assertEqual( 246, invoke_nif({uint2, 123})),
         ?_assertEqual( 1000, invoke_nif({uint2, 500})),
         ?_assertError( badarg, invoke_nif({uint2, abc}))
         ].
-        
+
 long_test_() ->
     [
         ?_assertEqual( 246, invoke_nif({long2, 123})),
@@ -122,8 +132,8 @@ tuple_test_() ->
 %%        ?_assertEqual( {246, "abcabc", {xyzxyz, 912}, 1000.0},
 %%                invoke_nif({tuple2e, {123, "abc", {xyz, 456}, 500.0}}))
                 ].
-                
-             
+
+
 list_test_() ->
     [
         ?_assertEqual([1,2,3,5,4,4,5,3,2,1], invoke_nif({list2aa, [1,2,3,5,4]})),
@@ -225,7 +235,7 @@ tracetyperes_test_() ->
         ?_test(erlang:garbage_collect()),
         ?_assertEqual({10,10}, invoke_nif({tracetype_getcnts,[]}))
     ].
-        
+
 bin_test_() ->
     [
     ?_assertEqual(<<"boatsboats">>, invoke_nif({bin2, <<"boats">>})),
@@ -236,5 +246,5 @@ bin_test_() ->
         ?assertEqual(3, invoke_nif({binary_release_counter_get,[]}))
     end
     ].
-            
+
 

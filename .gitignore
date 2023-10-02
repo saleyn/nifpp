@@ -1,5 +1,7 @@
 .vscode/
-examples/*.beam
+test/*.beam
+test/*.asm
+test/*.dump
 **/*.o
 **/*.so
 **/*.so.dSYM*
