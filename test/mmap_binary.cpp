@@ -22,7 +22,7 @@ static ERL_NIF_TERM open_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]
         auto map_ptr = nifpp::construct_resource<mapped_file_source>( nifpp::get<std::string>(env, argv[0]) );
         return nifpp::make_resource_binary(env, map_ptr, (const void *)(map_ptr->data()), map_ptr->size());
     }
-    catch(nifpp::badarg) {}
+    catch(std::invalid_argument) {}
     catch(std::ios_base::failure) {}
     return enif_make_badarg(env);
 }

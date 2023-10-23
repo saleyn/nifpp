@@ -222,18 +222,40 @@ intres_test_() ->
 
 tracetyperes_test_() ->
     Temp = fun() ->
-        Rs = [ invoke_nif({tracetype_create,[]}) || _X <- lists:seq(1,10) ],
-        ?assertEqual({10,0}, invoke_nif({tracetype_getcnts,[]})),
+        Rs = [ invoke_nif({tracetype_create,[]}) || _ <- lists:seq(1,10) ],
+        ?assertEqual({10,0,0,0}, invoke_nif({tracetype_getcnts,[]})),
         erlang:garbage_collect(),
-        ?assertEqual({10,0}, invoke_nif({tracetype_getcnts,[]})),
+        ?assertEqual({10,0,0,0}, invoke_nif({tracetype_getcnts,[]})),
         Rs % Rs gets collected above if this is not present
     end,
     [
         ?_assertEqual(ok, invoke_nif({tracetype_reset,[]})),
-        ?_assertEqual({0,0}, invoke_nif({tracetype_getcnts,[]})),
+        ?_assertEqual({0,0,0,0}, invoke_nif({tracetype_getcnts,[]})),
         Temp,
         ?_test(erlang:garbage_collect()),
-        ?_assertEqual({10,10}, invoke_nif({tracetype_getcnts,[]}))
+        ?_assertEqual({10,10,0,0}, invoke_nif({tracetype_getcnts,[]}))
+    ].
+
+tracetyperes_mon_test_() ->
+    Pid = spawn(fun() -> timer:sleep(60000) end),
+    Temp = fun() ->
+        Rs = [ invoke_nif({tracetype_mon_create,Pid}) || _ <- lists:seq(1,10) ],
+        ?assertEqual({10,0,10,0}, invoke_nif({tracetype_getcnts,[]})),
+        erlang:exit(Pid, kill),
+        erlang:garbage_collect(),
+        ?assertEqual({10,0,10,0}, invoke_nif({tracetype_getcnts,[]})),
+        % The sleep forces a context switch which allows the monitor to
+        % propagate the events of the Pid's death
+        timer:sleep(1),
+        ?assertEqual({10,0,10,10}, invoke_nif({tracetype_getcnts,[]})),
+        Rs % Rs gets collected above if this is not present
+    end,
+    [
+        ?_assertEqual(ok, invoke_nif({tracetype_reset,[]})),
+        ?_assertEqual({0,0,0,0}, invoke_nif({tracetype_getcnts,[]})),
+        Temp,
+        ?_test(erlang:garbage_collect()),
+        ?_assertEqual({10,10,10,10}, invoke_nif({tracetype_getcnts,[]}))
     ].
 
 bin_test_() ->

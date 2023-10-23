@@ -103,19 +103,32 @@ class tracetype
 public:
     static int ctor_cnt;
     static int dtor_cnt;
-    tracetype() { ctor_cnt++; }
+    static int mon_cnt;
+    static int down_cnt;
+    tracetype() : pid{} { ctor_cnt++; }
+    tracetype(ErlNifEnv* env, ErlNifPid& pid) : pid(pid) {
+        ctor_cnt++; mon_cnt++;
+        enif_monitor_process(env, this, &pid, nullptr);
+    }
     ~tracetype() { dtor_cnt++; }
     static void reset()
     {
         ctor_cnt = 0;
         dtor_cnt = 0;
+        mon_cnt  = 0;
+        down_cnt = 0;
     }
 
+    void monitor_triggered(ErlNifPid* down_pid) { if (*down_pid == pid) down_cnt++; }
+
     int x;
+    ErlNifPid pid;
 };
 
 int tracetype::ctor_cnt;
 int tracetype::dtor_cnt;
+int tracetype::mon_cnt;
+int tracetype::down_cnt;
 
 ERL_NIF_TERM nif_main(ErlNifEnv* env, nifpp::TERM term)
 {
@@ -386,9 +399,21 @@ ERL_NIF_TERM nif_main(ErlNifEnv* env, nifpp::TERM term)
     {
         return make(env, construct_resource<tracetype>());
     }
+    else if(cmd=="tracetype_mon_create")
+    {
+        ErlNifPid pid;
+        get_throws(env, cmddata, pid);
+
+        resource_events<tracetype> events(
+            [](tracetype* obj, ErlNifEnv*, ErlNifPid* down_pid, ErlNifMonitor*) {
+                obj->monitor_triggered(down_pid);
+            });
+        return make(env, construct_resource_with_events<tracetype>(events, env, pid));
+    }
     else if(cmd=="tracetype_getcnts")
     {
-        return make(env, std::make_tuple(tracetype::ctor_cnt, tracetype::dtor_cnt));
+        return make(env, std::make_tuple(tracetype::ctor_cnt,
+            tracetype::dtor_cnt, tracetype::mon_cnt, tracetype::down_cnt));
     }
 
     // test binaries
@@ -451,9 +476,9 @@ extern "C" {
 static int load(ErlNifEnv* env, [[maybe_unused]] void** priv, [[maybe_unused]] ERL_NIF_TERM load_info)
 {
     nifpp::initialize_known_atoms(env);
-    register_resource<std::string>(env, nullptr, "std::string");
-    register_resource<int>(env, nullptr, "int");
-    register_resource<tracetype>(env, nullptr, "tracetype");
+    register_resource<std::string>(env, "std::string");
+    register_resource<int>(env, "int");
+    register_resource<tracetype>(env, "tracetype");
     return 0;
 }
 
@@ -463,7 +488,7 @@ static ERL_NIF_TERM invoke_nif(ErlNifEnv* env, [[maybe_unused]] int argc, const 
     {
         return nif_main(env, nifpp::TERM(argv[0]));
     }
-    catch(nifpp::badarg)
+    catch(std::invalid_argument const&)
     {
         return enif_make_badarg(env);
     }

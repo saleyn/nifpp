@@ -3,7 +3,7 @@ NIF_INCLUDE:=-I../ -I$(ERLANG_PATH)
 
 COMMON_FLAGS = -g -O3 -ansi -pedantic -Wall -Wextra -ffunction-sections $(NIF_INCLUDE)
 CFLAGS = -std=c99
-CPPFLAGS = -std=c++17
+CPPFLAGS = -std=c++20
 
 ifeq ($(disassemble),)
 ifneq ($(OS),Windows_NT)

@@ -49,11 +49,13 @@
 #endif
 #include <cassert>
 #include <cstring>
+#include <functional>
+#include <stdexcept>
+#include <typeinfo>
+#include <iostream>
 
 namespace nifpp
 {
-
-class badarg{};
 
 struct TERM
 {
@@ -64,7 +66,11 @@ struct TERM
 
     inline operator ERL_NIF_TERM() const { return v; }
 
+    // FIXME: should we use enif_compare() instead???
     bool operator<(const TERM rhs) const { return v < rhs.v; }
+
+    // Three-way compare. Corresponds to the Erlang operators ==, /=, =<, <, >=, and >.
+    int compare(const TERM rhs) const { return enif_compare(*(TERM*)this, (TERM)rhs); }
 
     // There's no need to overload operator==, since the TERM has
     // implicit cast to ERL_NIF_TERM, which is long int.
@@ -85,7 +91,7 @@ struct atom
     atom(ErlNifEnv* env, ERL_NIF_TERM v)
     {
         if (!enif_is_atom(env, v)) [[unlikely]]
-            throw badarg();
+            throw std::invalid_argument("expected atom");
         val = v;
     }
 
@@ -497,22 +503,46 @@ inline TERM make(ErlNifEnv* env, const ErlNifPid &var)
 
 // forward declarations for friend statements
 template<class T> class resource_ptr;
-template<typename T> bool get(ErlNifEnv* env, ERL_NIF_TERM term, resource_ptr<T>& var);
-template<typename T, typename ...Args> resource_ptr<T> construct_resource(Args&&... args);
+template<typename T>
+bool  get(ErlNifEnv* env, ERL_NIF_TERM term, resource_ptr<T>& var);
+
+template <typename T>
+using ResourceDownEvent = void (*)(T*, ErlNifEnv*, ErlNifPid*, ErlNifMonitor*);
+template <typename T>
+using ResourceStopEvent = void (*)(T*, ErlNifEnv*, ErlNifEvent event, int is_direct_call);
+template <typename T>
+using ResourceDynCallEvent = void (*)(T*, ErlNifEnv*, void* call_data);
+
+template<typename T>
+struct resource_events {
+    resource_events() : resource_events(nullptr) {}
+    explicit resource_events(
+        ResourceDownEvent<T> down,
+        ResourceStopEvent<T> stop = nullptr,
+        ResourceDynCallEvent<T> dyncall = nullptr
+    ) : on_down(down), on_stop(stop), on_dyncall(dyncall) {}
+
+    ResourceDownEvent<T>    on_down;
+    ResourceStopEvent<T>    on_stop;
+    ResourceDynCallEvent<T> on_dyncall;
+};
+
+template<typename T, typename... Args>
+resource_ptr<T> construct_resource_with_events(resource_events<T> const&, Args&&... args);
+
+template<typename T, typename... Args>
+resource_ptr<T> construct_resource(Args&&... args);
+
 
 template<class T> class resource_ptr
 {
 private:
-
-    typedef resource_ptr this_type;
+    using this_type = resource_ptr;
 
 public:
+    using element_type = T;
 
-    typedef T element_type;
-
-    resource_ptr(): px(0)
-    {
-    }
+    resource_ptr(): px(0) {}
 
 private:
     resource_ptr(T* p, bool add_ref): px(p)
@@ -521,8 +551,11 @@ private:
     }
 
     // construction only permitted from these functions:
-    template<typename U, typename ...Args>
+    template<typename U, typename... Args>
     friend resource_ptr<U> construct_resource(Args&&... args);
+    template<typename U, typename... Args>
+    friend resource_ptr<U>
+    construct_resource_with_events(resource_events<U> const&, Args&&... args);
     template<typename U>
     friend bool get(ErlNifEnv* env, ERL_NIF_TERM term, resource_ptr<U>& var);
     // I would have liked to specialize these to T instead of granting access
@@ -665,18 +698,47 @@ namespace detail //(resource detail)
 {
 
 template<typename T>
-struct dtor_wrapper
+struct resource_wrapper
 {
     T obj;
     bool constructed;
+    resource_events<T> events;
 };
 
 template<typename T>
 void resource_dtor(ErlNifEnv*, void* obj)
 {
+    auto p = reinterpret_cast<resource_wrapper<T>*>(obj);
     // invoke destructor only if object was successfully constructed
-    if (reinterpret_cast<dtor_wrapper<T>*>(obj)->constructed)
-        reinterpret_cast<T*>(obj)->~T();
+    if (p->constructed)
+        p->obj.~T();
+}
+
+// ErlNifResourceDown
+template<typename T>
+void resource_down(ErlNifEnv* env, void* obj, ErlNifPid* pid, ErlNifMonitor* mon)
+{
+    auto p = reinterpret_cast<resource_wrapper<T>*>(obj);
+    if (p->events.on_down)
+        p->events.on_down(&p->obj, env, pid, mon);
+}
+
+// ErlNifResourceStop
+template<typename T>
+void resource_stop(ErlNifEnv* env, void* obj, ErlNifEvent event, int is_direct_call)
+{
+    auto p = reinterpret_cast<resource_wrapper<T>*>(obj);
+    if (p->events.on_stop)
+        p->events.on_stop(&p->obj, env, event, is_direct_call);
+}
+
+// ErlNifResourceDynCall
+template<typename T>
+void resource_dyncall(ErlNifEnv* env, void* obj, void* call_data)
+{
+    auto p = reinterpret_cast<resource_wrapper<T>*>(obj);
+    if (p->events.on_dyncall)
+        p->events.on_dyncall(&p->obj, env, call_data);
 }
 
 template<typename T>
@@ -712,10 +774,49 @@ http://stackoverflow.com/questions/19366615/static-member-variable-in-class-temp
 
 } // namespace detail (resource detail)
 
+//------------------------------------------------------------------------------
+// Pid comparisons
+//------------------------------------------------------------------------------
+inline bool operator==(ErlNifPid const& a, ErlNifPid const& b)
+{
+    return enif_compare_pids(&a, &b) == 0;
+}
+
+inline bool operator<(ErlNifPid const& a, ErlNifPid const& b)
+{
+    return enif_compare_pids(&a, &b) < 0;
+}
+
+inline bool operator>(ErlNifPid const& a, ErlNifPid const& b)
+{
+    return enif_compare_pids(&a, &b) > 0;
+}
+
+//------------------------------------------------------------------------------
+// Monitor comparisons
+//------------------------------------------------------------------------------
+inline bool operator==(ErlNifMonitor const& a, ErlNifMonitor const& b)
+{
+    return enif_compare_monitors(&a, &b) == 0;
+}
+
+inline bool operator<(ErlNifMonitor const& a, ErlNifMonitor const& b)
+{
+    return enif_compare_monitors(&a, &b) < 0;
+}
+
+inline bool operator>(ErlNifMonitor const& a, ErlNifMonitor const& b)
+{
+    return enif_compare_monitors(&a, &b) > 0;
+}
+
+//------------------------------------------------------------------------------
+// get/make functions
+//------------------------------------------------------------------------------
 template<typename T>
 bool get(ErlNifEnv* env, ERL_NIF_TERM term, resource_ptr<T>& var)
 {
-    void *rawptr;
+    void* rawptr;
     if (!enif_get_resource(env, term, detail::resource_data<T>::type, &rawptr)) [[unlikely]]
         return false;
     var=resource_ptr<T>((T*)rawptr, true);
@@ -740,56 +841,82 @@ TERM make_resource_binary(ErlNifEnv* env, const resource_ptr<T>& var, const void
 
 template<typename T>
 bool register_resource(ErlNifEnv* env,
-                      const char* module_str,
                       const char* name,
                       ErlNifResourceFlags flags = ErlNifResourceFlags(ERL_NIF_RT_CREATE|ERL_NIF_RT_TAKEOVER),
                       ErlNifResourceFlags* tried = nullptr)
 {
-    auto type = enif_open_resource_type(env,
-                                        module_str,
-                                        name,
-                                        &detail::resource_dtor<T>,
-                                        flags,
-                                        tried);
+    ErlNifResourceTypeInit init{
+      .dtor    = &detail::resource_dtor<T>,
+      .stop    = &detail::resource_stop<T>,
+      .down    = &detail::resource_down<T>,
+      .members = 4,
+      .dyncall = &detail::resource_dyncall<T>
+    };
 
-    if (!type)
-    {
-        detail::resource_data<T>::type = 0;
-        return false;
-    }
-    else
-    {
-        detail::resource_data<T>::type = type;
-        return true;
-    }
+    detail::resource_data<T>::type =
+        enif_open_resource_type_x(env, name, &init, flags, tried);
+
+    return !!detail::resource_data<T>::type;
 }
 
+template<typename T, typename... Args>
+resource_ptr<T> construct_resource_with_events(resource_events<T> const& events, Args&&... args)
+{
+    ErlNifResourceType* type = detail::resource_data<T>::type;
 
-template<typename T, typename ...Args>
+    if (type == 0) {
+        std::cerr << "Resource type '" << typeid(T).name() << "' hasn't been registered!\r\n";
+        throw std::invalid_argument("unregistered resource");
+    }
+
+    void* mem = enif_alloc_resource(type, sizeof(detail::resource_wrapper<T>));
+
+    assert(mem);
+
+    // inhibit destructor in case ctor fails
+    auto p = reinterpret_cast<detail::resource_wrapper<T>*>(mem);
+    // immediately assign to resource pointer so that release will be called if construction fails
+    resource_ptr<T> rptr(&p->obj, false); //note: private ctor
+
+    p->constructed = false;
+
+    // copy the events
+    new (&p->events) resource_events<T>(events);
+    // invoke constructors with "placement new"
+    new (&p->obj) T(std::forward<Args&&>(args)...);
+
+    // ctor succeeded, enable dtor
+    p->constructed = true;
+    return rptr;
+}
+
+template<typename T, typename... Args>
 resource_ptr<T> construct_resource(Args&&... args)
 {
     ErlNifResourceType* type = detail::resource_data<T>::type;
-    assert(type!=0);
-    if (type)
-    {
-        void* mem = enif_alloc_resource(type, sizeof(detail::dtor_wrapper<T>));
 
-        // immediately assign to resource pointer so that release will be called if construction fails
-        resource_ptr<T> rptr(reinterpret_cast<T*>(mem), false); //note: private ctor
-        // inhibit destructor in case ctor fails
-        reinterpret_cast<detail::dtor_wrapper<T>*>(mem)->constructed = false;
-
-        //  invoke constructor with "placement new"
-        new(mem) T(std::forward<Args>(args)...);
-
-        // ctor succeeded, enable dtor
-        reinterpret_cast<detail::dtor_wrapper<T>*>(mem)->constructed = true;
-        return rptr;
+    if (type == 0) {
+        std::cerr << "Resource type '" << typeid(T).name() << "' hasn't been registered!\r\n";
+        throw std::invalid_argument("unregistered resource");
     }
-    else
-    {
-        return resource_ptr<T>();
-    }
+
+    void* mem = enif_alloc_resource(type, sizeof(detail::resource_wrapper<T>));
+
+    // inhibit destructor in case ctor fails
+    auto p = reinterpret_cast<detail::resource_wrapper<T>*>(mem);
+    // immediately assign to resource pointer so that release will be called if construction fails
+    resource_ptr<T> rptr(&p->obj, false); //note: private ctor
+
+    p->constructed = false;
+
+    // copy the events
+    new (&p->events) resource_events<T>();
+    // invoke constructors with "placement new"
+    new (&p->obj) T(std::forward<Args&&>(args)...);
+
+    // ctor succeeded, enable dtor
+    p->constructed = true;
+    return rptr;
 }
 
 //
@@ -1130,7 +1257,7 @@ T get(ErlNifEnv* env, ERL_NIF_TERM term)
     {
         return temp;
     }
-    throw badarg();
+    throw std::invalid_argument("term");
 }
 
 template<typename T>
@@ -1138,7 +1265,7 @@ void get_throws(ErlNifEnv* env, ERL_NIF_TERM term, T &t)
 {
     if (!get(env, term, t))
     {
-        throw badarg();
+        throw std::invalid_argument("t");
     }
 }
 
