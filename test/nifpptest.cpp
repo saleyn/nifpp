@@ -453,6 +453,17 @@ ERL_NIF_TERM nif_main(ErlNifEnv* env, nifpp::TERM term)
         return make(env,str_atom("ok"));
         // expect 3 release callss
     }
+    else if(cmd=="badarg")
+    {
+        return badarg(env);
+    }
+    else if(cmd=="raise_exception")
+    {
+        if (cmddata == am_nil)
+            return raise_exception(env, am_error, "exception");
+        else
+            return raise_exception(env, cmddata);
+    }
 
 
 
@@ -470,8 +481,6 @@ ERL_NIF_TERM nif_main(ErlNifEnv* env, nifpp::TERM term)
     return enif_make_badarg(env);
 }
 
-
-extern "C" {
 
 static int load(ErlNifEnv* env, [[maybe_unused]] void** priv, [[maybe_unused]] ERL_NIF_TERM load_info)
 {
@@ -499,4 +508,3 @@ static ErlNifFunc nif_funcs[] = {
 };
 
 ERL_NIF_INIT(nifpptest, nif_funcs, load, NULL, NULL, NULL)
-} //extern C

@@ -15,17 +15,39 @@ extern "C" {
 static ERL_NIF_TERM twiddle_nif(ErlNifEnv* env, [[maybe_unused]] int argc, const ERL_NIF_TERM argv[])
 {
     int a,b,c;
+    auto tup_in = std::make_pair(std::make_pair(ref(a), ref(b)), ref(c));
+    if (!nifpp::get(env, argv[0], tup_in)) [[unlikely]]
+        return enif_make_badarg(env);
+
+    return nifpp::make(env, std::make_pair(c, std::make_pair(b, a)));
+}
+
+static ERL_NIF_TERM twiddle_tuple1_nif(ErlNifEnv* env, [[maybe_unused]] int argc, const ERL_NIF_TERM argv[])
+{
+    int a,b,c;
     auto tup_in = make_tuple(make_tuple(ref(a), ref(b)), ref(c));
     if (!nifpp::get(env, argv[0], tup_in)) [[unlikely]]
         return enif_make_badarg(env);
 
-    return nifpp::make(env, make_tuple( c, make_tuple(b, a)));
+    return nifpp::make(env, make_tuple(c, make_tuple(b, a)));
 }
 
-static ErlNifFunc nif_funcs[] = { {"twiddle", 1, twiddle_nif, 0} };
+static ERL_NIF_TERM twiddle_tuple2_nif(ErlNifEnv* env, [[maybe_unused]] int argc, const ERL_NIF_TERM argv[])
+{
+    int a,b,c;
+    auto tup_in = make_tuple(make_tuple(ref(a), ref(b)), ref(c));
+    if (!nifpp::get(env, argv[0], tup_in)) [[unlikely]]
+        return enif_make_badarg(env);
 
-ERL_NIF_INIT(tuple_twiddle_cpp, nif_funcs, NULL, NULL, NULL, NULL)
+    return nifpp::make1(env, make_tuple(c, make_tuple(b, a)));
+}
 
 } //extern C
 
+static ErlNifFunc nif_funcs[] = {
+    {"twiddle", 1, twiddle_nif, 0},
+    {"twiddle_tuple1", 1, twiddle_tuple1_nif, 0},
+    {"twiddle_tuple2", 1, twiddle_tuple2_nif, 0},
+};
 
+ERL_NIF_INIT(tuple_twiddle_cpp, nif_funcs, NULL, NULL, NULL, NULL)

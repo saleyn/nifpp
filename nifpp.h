@@ -57,6 +57,11 @@
 namespace nifpp
 {
 
+// Library version
+
+static constexpr const int NIFPP_MAJOR_VSN = 2;
+static constexpr const int NIFPP_MINOR_VSN = 1;
+
 struct TERM
 {
     ERL_NIF_TERM v;
@@ -81,7 +86,7 @@ static_assert(sizeof(TERM)==sizeof(ERL_NIF_TERM), "TERM size does not match ERL_
 struct str_atom: public std::string
 {
     template<class ... Args>
-    str_atom(Args&& ... args) : std::string(args...) { }
+    str_atom(Args&& ... args) : std::string(std::forward<Args&&>(args)...) { }
 };
 
 struct atom
@@ -384,10 +389,9 @@ inline bool get(ErlNifEnv* env, ERL_NIF_TERM term, bool& var)
 
     return false; // some other atom, return error
 }
-inline TERM make(ErlNifEnv* env, const bool var)
+inline TERM make(ErlNifEnv*, const bool var)
 {
-    if (!am_true.initialized()) [[unlikely]]
-        initialize_known_atoms(env);
+    assert(am_true.initialized());
     return var ? am_true : am_false;
 }
 
@@ -534,7 +538,8 @@ template<typename T, typename... Args>
 resource_ptr<T> construct_resource(Args&&... args);
 
 
-template<class T> class resource_ptr
+template<class T>
+class resource_ptr
 {
 private:
     using this_type = resource_ptr;
@@ -597,7 +602,8 @@ public:
 
     void reset(T* rhs) { this_type(rhs).swap(*this); }
 
-    T* get() const { return px; }
+    T const* get() const { return px; }
+    T*       get()       { return px; }
 
     T& operator*() const
     {
@@ -925,6 +931,50 @@ resource_ptr<T> construct_resource(Args&&... args)
 
 // tuple
 
+namespace detail
+{
+
+    template<int I>
+    struct array_to_tupler
+    {
+        template<typename ...Ts>
+        static bool go(ErlNifEnv *env, std::tuple<Ts...> &t, const ERL_NIF_TERM *end)
+        {
+            return array_to_tupler<I-1>::go(env, t, --end)
+                && get(env, *end, std::get<I-1>(t));
+        }
+    };
+
+    template<>
+    struct array_to_tupler<0>
+    {
+        template<typename ...Ts>
+        static bool go(ErlNifEnv *, std::tuple<Ts...> &, const ERL_NIF_TERM *)
+        {
+            return 1;
+        }
+    };
+} // namespace detail
+
+template<typename ...Ts>
+bool get(ErlNifEnv *env, ERL_NIF_TERM term, std::tuple<Ts...> &var)
+{
+    int arity;
+    const ERL_NIF_TERM *array;
+    int ret = enif_get_tuple(env, term, &arity, &array);
+
+    // check if tuple
+    if(!ret) [[unlikely]]
+        return ret;
+
+    // check for matching arity
+    if (size_t(arity) != sizeof...(Ts)) [[unlikely]]
+        return 0;
+
+    // invoke recursive template to convert all items of tuple
+    return detail::array_to_tupler<std::tuple_size<std::tuple<Ts...>>::value>::go(env, var, array+arity);
+}
+/*
 template<typename ...Ts>
 bool get(ErlNifEnv* env, ERL_NIF_TERM term, std::tuple<Ts...>& var)
 {
@@ -933,7 +983,7 @@ bool get(ErlNifEnv* env, ERL_NIF_TERM term, std::tuple<Ts...>& var)
     auto ret = enif_get_tuple(env, term, &arity, &array);
 
     // check if tuple
-    if (!ret)
+    if (!ret) [[unlikely]]
         return ret;
 
     // check for matching arity
@@ -945,6 +995,7 @@ bool get(ErlNifEnv* env, ERL_NIF_TERM term, std::tuple<Ts...>& var)
     std::apply([&set](auto&&... arg) { (set(std::forward<decltype(arg)>(arg)), ...); }, var);
     return res;
 }
+*/
 
 template<typename T1, typename T2>
 bool get(ErlNifEnv* env, ERL_NIF_TERM term, std::pair<T1, T2>& var)
@@ -959,19 +1010,48 @@ bool get(ErlNifEnv* env, ERL_NIF_TERM term, std::pair<T1, T2>& var)
     return get(env, array[0], var.first) && get(env, array[1], var.second);
 }
 
-template<typename ...Ts>
+template<typename T1, typename T2>
+TERM make(ErlNifEnv* env, const std::pair<T1, T2>& var)
+{
+    std::array<ERL_NIF_TERM, 2> array{ make(env, var.first), make(env, var.second)};
+    return TERM(enif_make_tuple_from_array(env, array.begin(), array.size()));
+}
+
+// Alternative tuple to array implementation
+namespace {
+    // Function to iterate through all values, where I = size of tuple
+    template <size_t I = 0, typename... Ts>
+    typename std::enable_if_t<I == sizeof...(Ts), void>
+    to_array(ErlNifEnv*, ERL_NIF_TERM*, const std::tuple<Ts...>&)
+    {
+        // If iterated through all values of tuple, then simply return.
+        return;
+    }
+
+    template <size_t I = 0, typename... Ts>
+    typename std::enable_if_t<(I < sizeof...(Ts)), void>
+    to_array(ErlNifEnv* env, ERL_NIF_TERM* a, const std::tuple<Ts...>& tup)
+    {
+        *a = make(env, get<I>(tup));
+        // Go to next element
+        to_array<I + 1>(env, ++a, tup);
+    }
+}
+
+template<typename... Ts>
+TERM make1(ErlNifEnv* env, const std::tuple<Ts...>& var)
+{
+    std::array<ERL_NIF_TERM, sizeof...(Ts)> array;
+    to_array(env, array.data(), var);
+    return TERM(enif_make_tuple_from_array(env, array.begin(), array.size()));
+}
+
+template<typename... Ts>
 TERM make(ErlNifEnv* env, const std::tuple<Ts...>& var)
 {
     std::array<ERL_NIF_TERM, sizeof...(Ts)> array;
     auto it = array.begin();
     std::apply([env, &it](auto&&... x) { ((*it++ = make(env, x)), ...); }, var);
-    return TERM(enif_make_tuple_from_array(env, array.begin(), array.size()));
-}
-
-template<typename T1, typename T2>
-TERM make(ErlNifEnv* env, const std::pair<T1, T2>& var)
-{
-    std::array<ERL_NIF_TERM, 2> array{ make(env, var.first), make(env, var.second)};
     return TERM(enif_make_tuple_from_array(env, array.begin(), array.size()));
 }
 
@@ -1269,6 +1349,23 @@ void get_throws(ErlNifEnv* env, ERL_NIF_TERM term, T &t)
     }
 }
 
+
+//------------------------------------------------------------------------------
+// Exceptions
+//------------------------------------------------------------------------------
+inline TERM badarg(ErlNifEnv* env) { return TERM(enif_make_badarg(env)); }
+
+template <typename T>
+inline TERM raise_exception(ErlNifEnv* env, T&& arg) {
+    return TERM(enif_raise_exception(env, make(env, arg)));
+}
+
+template <typename T, typename... Args>
+inline TERM raise_exception(ErlNifEnv* env, T&& arg, Args&&... args) {
+    return TERM(enif_raise_exception(
+        env, make(env, std::make_tuple(std::forward<T&&>(arg),
+                                       std::forward<Args&&>(args)...))));
+}
 
 } // namespace nifpp
 

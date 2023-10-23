@@ -22,39 +22,52 @@ do_times(F, N) ->
     do_times(F,N-1).
 
 benchmark() ->
-    Reps = 1000,
-    InnerReps = 10000,
+    Reps = 3000,
+    InnerReps = 20000,
     Input = {{1,2},3},
     Self = self(),
     % force load modules
     tuple_twiddle_c:twiddle(Input),
     tuple_twiddle_cpp:twiddle(Input),
+    erlang:garbage_collect(),
+    Tests = [
+        {cpp_tup_orig,  fun() -> tuple_twiddle_cpp:twiddle(Input)        end},
+        {cpp_tup_apply, fun() -> tuple_twiddle_cpp:twiddle_tuple1(Input) end},
+        {cpp_tup_array, fun() -> tuple_twiddle_cpp:twiddle_tuple2(Input) end},
+        {c,             fun() -> tuple_twiddle_c:twiddle(Input)          end}
+    ],
+    Procs = [{Name, spawn_link(fun() -> Self ! {Name, test_avg(fun() -> do_times(F, InnerReps) end, Reps)} end)} || {Name, F} <- Tests],
 
-    spawn_link(fun() ->
-        Self ! {cpp, test_avg(fun() -> do_times(fun() -> tuple_twiddle_cpp:twiddle(Input) end, InnerReps) end, Reps)}
-    end),
+    io:format("~-13s |   Min |   Max | Median |   Avg   |   95%   |   99%   | (all times in µs)\n", ["Benchmark"]),
+    io:format("--------------+-------+-------+--------+---------+---------+---------+\n", []),
 
-    spawn_link(fun() ->
-        Self ! {c, test_avg(fun() -> do_times(fun() -> tuple_twiddle_c:twiddle(Input) end, InnerReps) end, Reps)}
-    end),
+    List0 = [receive {N, Stats} -> {atom_to_list(N), Stats} after 60000 -> error(N) end || {N, _Pid} <- Procs],
 
-    io:format("~-17s |   Min |   Max | Median | Average | (all times in µs)\n", ["Benchmark"]),
-    io:format("------------------+-------+-------+--------+---------+\n", []),
-    receive {cpp, Stats1} -> print("tuple_twiddle_cpp", Stats1) after 60000 -> error(timeout_twiddle_cpp) end,
-    receive {c,   Stats2} -> print("tuple_twiddle_c",   Stats2) after 60000 -> error(timeout_twiddle_c)   end.
+    List  = lists:sort(fun({_, #{n99 := M1}}, {_, #{n99 := M2}}) -> M1 < M2 end, List0),
+    {MinName, #{n99 := MinMed}} = hd(List),
+    [print(N, S, MinName, MinMed) || {N, S} <- List],
+    ok.
 
-print(Test, #{min := Min, max := Max, med := Med, avg := Avg}) ->
-    io:format("~-17s | ~5w | ~5w | ~6w | ~7w |\n", [Test, Min, Max, Med, Avg]).
+print(Name, #{min := Min, max := Max, med := Med, avg := Avg, n95 := N95, n99 := N99}, MinName, MinMed) ->
+    Pcnt = N99 * 100.0 / MinMed - 100,
+    io:format("~-13s | ~5w | ~5w | ~6w | ~7w | ~7w | ~7w |~s~-7s~s\n",
+        [Name, Min, Max, Med, Avg, N95, N99,
+         if Name == MinName -> ""; Pcnt >= 0 -> " +"; true -> " " end,
+         if Name == MinName -> ""; true -> float_to_list(Pcnt, [{decimals, 2}]) ++ "%" end,
+         case Name of MinName -> ""; _ -> " of " ++ MinName end
+        ]).
 
 test_avg(F, N) when N > 0 ->
-    erlang:garbage_collect(),
     L = test_loop(F, N, []),
+    List = lists:sort(L),
     Length = length(L),
     Min = lists:min(L),
     Max = lists:max(L),
-    Med = lists:nth(round((Length / 2)), lists:sort(L)),
+    Med = lists:nth(round(Length / 2), List),
+    N95 = lists:nth(round(Length * 0.95), List),
+    N99 = lists:nth(round(Length * 0.99), List),
     Avg = round(lists:foldl(fun(X, Sum) -> X + Sum end, 0, L) / Length),
-    #{min => Min, max => Max, med => Med, avg => Avg}.
+    #{min => Min, max => Max, med => Med, avg => Avg, n95 => N95, n99 => N99}.
 
 test_loop(_F, 0, List) ->
     List;
@@ -267,6 +280,13 @@ bin_test_() ->
         ?assertEqual(ok, invoke_nif({bina,[]})),
         ?assertEqual(3, invoke_nif({binary_release_counter_get,[]}))
     end
+    ].
+
+exception_test_() ->
+    [
+        ?_assertError(badarg, invoke_nif({badarg, []})),
+        ?_assertError({error, "exception"}, invoke_nif({raise_exception, nil})),
+        ?_assertError(bad,    invoke_nif({raise_exception, bad}))
     ].
 
 
