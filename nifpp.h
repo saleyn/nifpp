@@ -1,11 +1,11 @@
-
+//          Copyright Serge Aleynikov 2023.
 //          Copyright Daniel Goertzen 2012.
 // Distributed under the Boost Software License, Version 1.0.
 //    (See accompanying file LICENSE_1_0.txt or copy at
 //          http://www.boost.org/LICENSE_1_0.txt)
 
 //
-// nifpp is a C++11 Wrapper for the Erlang NIF API
+// nifpp is a C++ Wrapper for the Erlang NIF API
 //
 
 //
