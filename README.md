@@ -27,13 +27,13 @@ directory.  Wherever you need to implement NIF functions for Erlang/C++ interop,
 typically having to write:
 
 ```c++
-	#include <erl_nif.h>
+    #include <erl_nif.h>
 ```
 
 instead, write:
 
 ```c++
-	#include "nifpp.h"
+    #include "nifpp.h"
 ```
 
 All nifpp functions are available in the `nifpp` namespace.  The C API remains
@@ -44,7 +44,7 @@ your Makefile:
 
 ```make
 nifpp.h:
-	curl -sO https://raw.githubusercontent.com/saleyn/nifpp/main/nifpp.h
+    curl -sO https://raw.githubusercontent.com/saleyn/nifpp/main/nifpp.h
 ```
 
 ## Initialization
@@ -124,8 +124,8 @@ Nifpp provides overloaded wrappers for most of the `enif_get_XXX()` and
 `enif_make_XXX()` functions.  The prototypes are:
 
 ```c++
-	bool nifpp::get(ErlNifEnv *env, ERL_NIF_TERM term, T &var);
-	nifpp::TERM nifpp::make(ErlNifEnv *env, const T &var);
+    bool nifpp::get(ErlNifEnv *env, ERL_NIF_TERM term, T &var);
+    nifpp::TERM nifpp::make(ErlNifEnv *env, const T &var);
 ```
 
 `get()` will return true on success, false on failure.
@@ -133,16 +133,16 @@ Nifpp provides overloaded wrappers for most of the `enif_get_XXX()` and
 There are some additional template wrappers for `get()`:
 
 ```c++
-	void nifpp::get_throws(ErlNifEnv *env, ERL_NIF_TERM term, T &var);
-	T nifpp::get(ErlNifEnv *env, ERL_NIF_TERM term);
+    void nifpp::get_throws(ErlNifEnv *env, ERL_NIF_TERM term, T &var);
+    T nifpp::get(ErlNifEnv *env, ERL_NIF_TERM term);
 ```
 Both forms will throw `std::invalid_argument` upon failure.  Note that for the
 last form, the type must be explicitly specified since it cannot be inferred,
 for example:
 
 ```c++
-	int i = nifpp::get(env, term);       // compile error
-	int i = nifpp::get<int>(env, term);  // success!
+    int i = nifpp::get(env, term);       // compile error
+    int i = nifpp::get<int>(env, term);  // success!
 ```
 
 ### Plain-Old-Data Types
@@ -166,37 +166,37 @@ list `nifpp::get()`/`nifpp::make()` (see below).
 #### Examples:
 
 ```c++
-	// get() example 1
-	long a;
-	if(nifpp::get(env, term, a))
-	{ … do something with a...}
+    // get() example 1
+    long a;
+    if(nifpp::get(env, term, a))
+    { ... do something with a...}
 
-	// get() example 2
-	try {
-	  double b;
-	  nifpp::get_throws(env, term, b);
-	  … do something with b...
-	}
-	catch(std::invalid_argument const&) {}
+    // get() example 2
+    try {
+      double b;
+      nifpp::get_throws(env, term, b);
+      ... do something with b...
+    }
+    catch(std::invalid_argument const&) {}
 
-	// get() example 3
-	try {
-	  auto c = nifpp::get<ErlNifPid>(env, term);
-	  … do something with c...
-	}
-	catch(std::invalid_argument const&) {}
+    // get() example 3
+    try {
+      auto c = nifpp::get<ErlNifPid>(env, term);
+      ... do something with c...
+    }
+    catch(std::invalid_argument const&) {}
 
-	// make() example 1
-	nifpp::TERM output;
-	output = nifpp::make(env, a);
-	return output;
+    // make() example 1
+    nifpp::TERM output;
+    output = nifpp::make(env, a);
+    return output;
 
-	// make() example 2
-	auto output = nifpp::make(env, b);
-	return output;
+    // make() example 2
+    auto output = nifpp::make(env, b);
+    return output;
 
-	// make() example 3
-	return nifpp::make(env, c);
+    // make() example 3
+    return nifpp::make(env, c);
 ```
 
 ### Strings
@@ -204,17 +204,17 @@ list `nifpp::get()`/`nifpp::make()` (see below).
 String are represented by `std::string`.  Examples:
 
 ```c++
-	// get() example:
-	std::string a;
-	nifpp::get_throws(env, term, a);
-	… do something with a...
+    // get() example:
+    std::string a;
+    nifpp::get_throws(env, term, a);
+    ... do something with a...
 
-	// make() example 1:
-	nifpp::TERM term = nifpp::make(env, “hello world”);
+    // make() example 1:
+    nifpp::TERM term = nifpp::make(env, “hello world”);
 
-	// make() example 2:
-	std::string a(“hello world”);
-	nifpp::TERM term = nifpp::make(env, a);
+    // make() example 2:
+    std::string a(“hello world”);
+    nifpp::TERM term = nifpp::make(env, a);
 ```
 
 ### Atoms
@@ -224,22 +224,22 @@ wrapper around `std::string` or `nifpp::atom`, which is a wrapper around
 `ERL_NIF_TERM`.
 
 ```c++
-	// get() example:
-	nifpp::str_atom a;
-	nifpp::get_throws(env, term, a);
-	… do something with a...
+    // get() example:
+    nifpp::str_atom a;
+    nifpp::get_throws(env, term, a);
+    ... do something with a...
 
-	// make() example 1:
-	nifpp::TERM term = nifpp::make(env, nifpp::str_atom(“hello world”));
+    // make() example 1:
+    nifpp::TERM term = nifpp::make(env, nifpp::str_atom(“hello world”));
 
-	// make() example 2:
-	nifpp::str_atom a(“hello world”);
-	nifpp::TERM term = nifpp::make(env, a);
+    // make() example 2:
+    nifpp::str_atom a(“hello world”);
+    nifpp::TERM term = nifpp::make(env, a);
 
     // make() example 3:
-	nifpp::atom a;
-	nifpp::get_throws(env, term, a);
-	… do something with a...
+    nifpp::atom a;
+    nifpp::get_throws(env, term, a);
+    ... do something with a...
 
     // make() example 4:
     nifpp::TERM term = nifpp::atom(env, "abc");
@@ -248,7 +248,7 @@ wrapper around `std::string` or `nifpp::atom`, which is a wrapper around
     nifpp::atom a;
     a.init(env, "abc");
     if (nifpp::atom(env, "abc") == a)
-        … do something with a...
+        ... do something with a...
 
     ... do something ...
 ```
@@ -292,20 +292,20 @@ Tuples are represented by the C++11 type `std::tuple`.  Tuples-of-references are
 a powerful method for cracking and packing Erlang tuple terms.  Examples:
 
 ```c++
-	// crack simple tuple {hello, 14} using tuple-of-references
-	nifpp::str_atom a;
-	int b;
-	auto tup = std::make_tuple( std::ref(a), std::ref(b) );
-	nifpp::get_throws(env, term, tup);
+    // crack simple tuple {hello, 14} using tuple-of-references
+    nifpp::str_atom a;
+    int b;
+    auto tup = std::make_tuple( std::ref(a), std::ref(b) );
+    nifpp::get_throws(env, term, tup);
 
-	// crack nested tuple {hello, 14, {10,4}} using tuple-of-references
-	nifpp::str_atom a;
-	int b;
-	int c;
-	int d;
-	auto tup = std::make_tuple( std::ref(a), std::ref(b),
-	     std::make_tuple( std::ref(c), std::ref(d) ));
-	nifpp::get_throws(env, term, tup);
+    // crack nested tuple {hello, 14, {10,4}} using tuple-of-references
+    nifpp::str_atom a;
+    int b;
+    int c;
+    int d;
+    auto tup = std::make_tuple( std::ref(a), std::ref(b),
+         std::make_tuple( std::ref(c), std::ref(d) ));
+    nifpp::get_throws(env, term, tup);
 ```
 
 `std::tie()` offers syntactic sugar for composing a tuple-of-references.  Note
@@ -313,53 +313,53 @@ that the result of `std::tie()` is not a reference, so it cannot be used in the
 top-level tuple in the nested tuple example.  Examples:
 
 ```c++
-	// crack simple tuple {hello, 14} using tuple-of-references [using std::tie()]
-	nifpp::str_atom a;
-	int b;
-	auto tup = std::tie( a, b );
-	nifpp::get_throws(env, term, tup);
+    // crack simple tuple {hello, 14} using tuple-of-references [using std::tie()]
+    nifpp::str_atom a;
+    int b;
+    auto tup = std::tie( a, b );
+    nifpp::get_throws(env, term, tup);
 
-	// crack nested tuple {hello, 14, {10,4}} using tuple-of-references [using std::tie()]
-	nifpp::str_atom a;
-	int b;
-	int c;
-	int d;
-	auto tup = std::make_tuple( std::ref(a), std::ref(b), std::tie( c, d) );
-	nifpp::get_throws(env, term, tup);
+    // crack nested tuple {hello, 14, {10,4}} using tuple-of-references [using std::tie()]
+    nifpp::str_atom a;
+    int b;
+    int c;
+    int d;
+    auto tup = std::make_tuple( std::ref(a), std::ref(b), std::tie( c, d) );
+    nifpp::get_throws(env, term, tup);
 
 
-	`nifpp::TERM` can be used to defer decoding of tuple elements.  Example:
+    `nifpp::TERM` can be used to defer decoding of tuple elements.  Example:
 
-	// partial crack
-	nifpp::str_atom type;
-	nifpp::TERM value;
-	auto tup = std::tie( type, value );
-	nifpp::get_throws(env, term, tup);
-	… decode value based on type
+    // partial crack
+    nifpp::str_atom type;
+    nifpp::TERM value;
+    auto tup = std::tie( type, value );
+    nifpp::get_throws(env, term, tup);
+    ... decode value based on type
 ```
 
 If you want to use `std::tuple` for the C++ side of your code, you can use
 regular value tuples too.  Example:
 
 ```c++
-	// crack plain tuple
-	std::tuple<str_atom, int, ERL_NIF_TERM> tup;
-	nifpp::get_throws(env, term, tup);
+    // crack plain tuple
+    std::tuple<str_atom, int, ERL_NIF_TERM> tup;
+    nifpp::get_throws(env, term, tup);
 ```
 
 And here are some examples of tuple packing...
 
 ```c++
-	ERL_NIF_TERM term;
-	nifpp::str_atom a(“hello”);
-	int b(4);
-	term = nifpp::make(env, std::make_tuple(a,b));
+    ERL_NIF_TERM term;
+    nifpp::str_atom a(“hello”);
+    int b(4);
+    term = nifpp::make(env, std::make_tuple(a,b));
 
-	ERL_NIF_TERM term;
-	auto tup = std::make_tuple(nifpp::str_atom(“hello”), 4);
-	term = nifpp::make(env, tup);
+    ERL_NIF_TERM term;
+    auto tup = std::make_tuple(nifpp::str_atom(“hello”), 4);
+    term = nifpp::make(env, tup);
 
-	ERL_NIF_TERM term = nifpp::make(env, std::make_tuple(nifpp::str_atom(“hello”), 4));
+    ERL_NIF_TERM term = nifpp::make(env, std::make_tuple(nifpp::str_atom(“hello”), 4));
 ```
 
 ### Lists
@@ -376,22 +376,22 @@ Lists can be represented by a number of types:
 an Erlang list.  Examples:
 
 ```c++
-	std::vector<int> myintlist;
-	nifpp::get_throws(env, term, myintlist);
+    std::vector<int> myintlist;
+    nifpp::get_throws(env, term, myintlist);
 
-	std::vector<ERL_NIF_TERM> mylist;
-	nifpp::get_throws(env, term, mylist);
+    std::vector<ERL_NIF_TERM> mylist;
+    nifpp::get_throws(env, term, mylist);
 
-	std::deque<int> mydeque;
-	mydeque.push_back(44);
-	...
-	nifpp::TERM term = nifpp::make(env, mydeque);
+    std::deque<int> mydeque;
+    mydeque.push_back(44);
+    ...
+    nifpp::TERM term = nifpp::make(env, mydeque);
 ```
 
 There is also a special Erlang list iteration function:
 
 ```c++
-	bool nifpp::list_foreach(ErlNifEnv *env, ERL_NIF_TERM list_term, std::function<void (ErlNifEnv *, ERL_NIF_TERM item)>);
+    bool nifpp::list_foreach(ErlNifEnv *env, ERL_NIF_TERM list_term, std::function<void (ErlNifEnv *, ERL_NIF_TERM item)>);
 ```
 
 This is useful if you want to iterate through a list without copying the entire
@@ -425,9 +425,9 @@ Maps are only available when compiling NIFs on Erlang v17 or later.
 The following forms are for working with resources:
 
 ```c++
-	bool nifpp::get(ErlNifEnv* env, ERL_NIF_TERM term, T*& var);
-	bool nifpp::get(ErlNifEnv* env, ERL_NIF_TERM term, resource_ptr<T>& var);
-	nifpp::TERM nifpp::make(ErlNifEnv *env, const resource_ptr<T>& var)
+    bool nifpp::get(ErlNifEnv* env, ERL_NIF_TERM term, T*& var);
+    bool nifpp::get(ErlNifEnv* env, ERL_NIF_TERM term, resource_ptr<T>& var);
+    nifpp::TERM nifpp::make(ErlNifEnv *env, const resource_ptr<T>& var)
 ```
 
 See section below for details on nifpp resources.
@@ -444,13 +444,13 @@ Nifpp allows any C++ type to be used as a resource.  All resource types must be
 registered using:
 
 ```c++
-	template<typename T>
-	int nifpp::register_resource(
-		ErlNifEnv* env,
-		const char* module_str,
-		const char* name,
-		ErlNifResourceFlags flags = ErlNifResourceFlags(ERL_NIF_RT_CREATE|ERL_NIF_RT_TAKEOVER),
-		ErlNifResourceFlags* tried = nullptr);
+    template<typename T>
+    int nifpp::register_resource(
+        ErlNifEnv* env,
+        const char* module_str,
+        const char* name,
+        ErlNifResourceFlags flags = ErlNifResourceFlags(ERL_NIF_RT_CREATE|ERL_NIF_RT_TAKEOVER),
+        ErlNifResourceFlags* tried = nullptr);
 ```
 
 This function does a number of things:
@@ -462,19 +462,19 @@ This function does a number of things:
 Registrations must appear in the nif module’s `load()` function, for example:
 
 ```c++
-	static int load(ErlNifEnv* env, void** priv, ERL_NIF_TERM load_info)
-	{
-	   nifpp::register_resource<std::string>(env, nullptr, "std::string");
-	   nifpp::register_resource<int>(env, nullptr, "peanutbutter toast, yum");
-	   nifpp::register_resource<MyClass>(env, nullptr, "MyClass");
-	   return 0;
-	}
+    static int load(ErlNifEnv* env, void** priv, ERL_NIF_TERM load_info)
+    {
+       nifpp::register_resource<std::string>(env, nullptr, "std::string");
+       nifpp::register_resource<int>(env, nullptr, "peanutbutter toast, yum");
+       nifpp::register_resource<MyClass>(env, nullptr, "MyClass");
+       return 0;
+    }
 ```
 
 Objects are created with:
 
 ```c++
-	nifpp::resource_ptr<T> nifpp::construct_resource<T>(Args...);
+    nifpp::resource_ptr<T> nifpp::construct_resource<T>(Args...);
 ```
 
 Where `Args` is a set of parameters accepted by any of `T`’s constructors.
@@ -492,14 +492,14 @@ NIF function call returns.
 Resource terms are created with `nifpp::make()`:
 
 ```c++
-	nifpp::TERM nifpp::make(ErlNifEnv *env, const resource_ptr<T> &var);
+    nifpp::TERM nifpp::make(ErlNifEnv *env, const resource_ptr<T> &var);
 ```
 
 The object pointer can be retrieved from a resource term with
 
 ```c++
-	bool nifpp::get(ErlNifEnv *env, ERL_NIF_TERM term, T * &var);
-	bool nifpp::get(ErlNifEnv *env, ERL_NIF_TERM term, nifpp::resource_ptr<T> &var);
+    bool nifpp::get(ErlNifEnv *env, ERL_NIF_TERM term, T * &var);
+    bool nifpp::get(ErlNifEnv *env, ERL_NIF_TERM term, nifpp::resource_ptr<T> &var);
 ```
 
 The `T*` version does not affect reference counts, but should not be kept around
@@ -509,19 +509,19 @@ reference count as described above, but does not have the same restrictions.
 Examples of resource construction:
 
 ```c++
-	nifpp::resource_ptr<int> ptr = nifpp::construct_resource<int>();     //default ctor
-	nifpp::resource_ptr<int> ptr = nifpp::construct_resource<int>(123);
-	auto ptr = nifpp::construct_resource<int>(123);
-	auto ptr = nifpp::construct_resource<std::string>(“cupcakes”);
-	auto ptr = nifpp::construct_resource<vector<std::string>>(5000, “many cupcakes”);
-	auto ptr = nifpp::construct_resource<MyClass>(p1, p2, p3, p4);
-	auto ptr = nifpp::construct_resource<std::shared_ptr<MyClass>>(new MyClass(p1, p2, p3, p4));
+    nifpp::resource_ptr<int> ptr = nifpp::construct_resource<int>();     //default ctor
+    nifpp::resource_ptr<int> ptr = nifpp::construct_resource<int>(123);
+    auto ptr = nifpp::construct_resource<int>(123);
+    auto ptr = nifpp::construct_resource<std::string>(“cupcakes”);
+    auto ptr = nifpp::construct_resource<vector<std::string>>(5000, “many cupcakes”);
+    auto ptr = nifpp::construct_resource<MyClass>(p1, p2, p3, p4);
+    auto ptr = nifpp::construct_resource<std::shared_ptr<MyClass>>(new MyClass(p1, p2, p3, p4));
 ```
 
 Any of the above resources can be made into a term with:
 
 ```c++
-	nifpp::TERM term = nifpp::make(env, ptr);
+    nifpp::TERM term = nifpp::make(env, ptr);
 ```
 
 Also, any of the pointers may be kept around after the NIF call returns.  Be
@@ -529,8 +529,8 @@ sure to use C++11 copy constructor semantics to prevent superfluous
 `keep()`/`release(`) calls:
 
 ```c++
-	auto ptr = nifpp::construct_resource<std::string>(“cupcakes”);
-	bakery.front_window = std::move(ptr);
+    auto ptr = nifpp::construct_resource<std::string>(“cupcakes”);
+    bakery.front_window = std::move(ptr);
 ```
 
 If there is a need in notification events from monitors, selected file
@@ -558,22 +558,22 @@ descriptors or dynamic calls, use the following resource construction:
 Examples of getting objects from resource terms:
 
 ```c++
-	// these are for use within this nif call only.
-	int*                      ptr;
-	std::string*              ptr;
-	std::vector<std::string>* ptr;
-	MyClass*                  ptr;
-	std::shared_ptr<MyClass>* ptr;
+    // these are for use within this nif call only.
+    int*                      ptr;
+    std::string*              ptr;
+    std::vector<std::string>* ptr;
+    MyClass*                  ptr;
+    std::shared_ptr<MyClass>* ptr;
 
-	// these may be stored in between nif calls.
-	nifpp::resource_ptr<int>                      ptr;
-	nifpp::resource_ptr<std::string>              ptr;
-	nifpp::resource_ptr<vector<std::string>>      ptr;
-	nifpp::resource_ptr<MyClass>                  ptr;
-	nifpp::resource_ptr<std::shared_ptr<MyClass>> ptr;
+    // these may be stored in between nif calls.
+    nifpp::resource_ptr<int>                      ptr;
+    nifpp::resource_ptr<std::string>              ptr;
+    nifpp::resource_ptr<vector<std::string>>      ptr;
+    nifpp::resource_ptr<MyClass>                  ptr;
+    nifpp::resource_ptr<std::shared_ptr<MyClass>> ptr;
 
-	// all pointer types retrieved with...
-	nifpp::get(env, term, ptr);
+    // all pointer types retrieved with...
+    nifpp::get(env, term, ptr);
 ```
 
 ## Returning exceptions to Erlang
