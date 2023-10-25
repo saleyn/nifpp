@@ -210,10 +210,10 @@ String are represented by `std::string`.  Examples:
     ... do something with a...
 
     // make() example 1:
-    nifpp::TERM term = nifpp::make(env, “hello world”);
+    nifpp::TERM term = nifpp::make(env, "hello world");
 
     // make() example 2:
-    std::string a(“hello world”);
+    std::string a("hello world");
     nifpp::TERM term = nifpp::make(env, a);
 ```
 
@@ -230,10 +230,10 @@ wrapper around `std::string` or `nifpp::atom`, which is a wrapper around
     ... do something with a...
 
     // make() example 1:
-    nifpp::TERM term = nifpp::make(env, nifpp::str_atom(“hello world”));
+    nifpp::TERM term = nifpp::make(env, nifpp::str_atom("hello world"));
 
     // make() example 2:
-    nifpp::str_atom a(“hello world”);
+    nifpp::str_atom a("hello world");
     nifpp::TERM term = nifpp::make(env, a);
 
     // make() example 3:
@@ -351,15 +351,15 @@ And here are some examples of tuple packing...
 
 ```c++
     ERL_NIF_TERM term;
-    nifpp::str_atom a(“hello”);
+    nifpp::str_atom a("hello");
     int b(4);
     term = nifpp::make(env, std::make_tuple(a,b));
 
     ERL_NIF_TERM term;
-    auto tup = std::make_tuple(nifpp::str_atom(“hello”), 4);
+    auto tup = std::make_tuple(nifpp::str_atom("hello"), 4);
     term = nifpp::make(env, tup);
 
-    ERL_NIF_TERM term = nifpp::make(env, std::make_tuple(nifpp::str_atom(“hello”), 4));
+    ERL_NIF_TERM term = nifpp::make(env, std::make_tuple(nifpp::str_atom("hello"), 4));
 ```
 
 ### Lists
@@ -512,8 +512,8 @@ Examples of resource construction:
     nifpp::resource_ptr<int> ptr = nifpp::construct_resource<int>();     //default ctor
     nifpp::resource_ptr<int> ptr = nifpp::construct_resource<int>(123);
     auto ptr = nifpp::construct_resource<int>(123);
-    auto ptr = nifpp::construct_resource<std::string>(“cupcakes”);
-    auto ptr = nifpp::construct_resource<vector<std::string>>(5000, “many cupcakes”);
+    auto ptr = nifpp::construct_resource<std::string>("cupcakes");
+    auto ptr = nifpp::construct_resource<std::vector<std::string>>(5000, "many cupcakes");
     auto ptr = nifpp::construct_resource<MyClass>(p1, p2, p3, p4);
     auto ptr = nifpp::construct_resource<std::shared_ptr<MyClass>>(new MyClass(p1, p2, p3, p4));
 ```
@@ -529,7 +529,7 @@ sure to use C++11 copy constructor semantics to prevent superfluous
 `keep()`/`release(`) calls:
 
 ```c++
-    auto ptr = nifpp::construct_resource<std::string>(“cupcakes”);
+    auto ptr = nifpp::construct_resource<std::string>("cupcakes");
     bakery.front_window = std::move(ptr);
 ```
 
@@ -568,7 +568,7 @@ Examples of getting objects from resource terms:
     // these may be stored in between nif calls.
     nifpp::resource_ptr<int>                      ptr;
     nifpp::resource_ptr<std::string>              ptr;
-    nifpp::resource_ptr<vector<std::string>>      ptr;
+    nifpp::resource_ptr<std::vector<std::string>> ptr;
     nifpp::resource_ptr<MyClass>                  ptr;
     nifpp::resource_ptr<std::shared_ptr<MyClass>> ptr;
 
