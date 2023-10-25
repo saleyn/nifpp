@@ -664,11 +664,13 @@ processes that needs to get done, then expect problems.
 
 ## Performance
 
-The example programs `tuple_twiddle_cpp.cpp` and `tuple_twiddle_c.c` where
-benchmarked from `nifpptest.erl`.  When compiled under the latest Clang
-compiler with the `-O3` option. The table lists 3 different ways of
-constructing an Erlang tuple using C++ tuple and pair, versus a C
-implementation.  The last column is based on the 99th percentile
+The example programs
+[tuple_twiddle_cpp.cpp](https://github.com/saleyn/nifpp/blob/main/test/tuple_twiddle_cpp.cpp)
+and [tuple_twiddle_c.c](https://github.com/saleyn/nifpp/blob/main/test/tuple_twiddle_c.c)
+where benchmarked from [nifpptest.erl](https://github.com/saleyn/nifpp/blob/main/test/nifpptest.erl#L24-L49).
+When compiled under the latest Clang compiler with the `-O3` option. The table
+lists 3 different ways of constructing an Erlang tuple using C++ tuple and pair,
+versus a C implementation.  The last column is based on the 99th percentile
 sorting order:
 
 ```
