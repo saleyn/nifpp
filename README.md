@@ -583,7 +583,7 @@ The following two helper functions are provided for raising exceptions:
 ```c++
     return nifpp::badard(env);               // Throws `badarg` error in Erlang
     return nifpp::raise_error(env, reason);  // Throws an error with the reason
-    return nifpp::raise_error(env, Args...); // Throws an error iwith a tuple of Args reason
+    return nifpp::raise_error(env, Args...); // Throws an error with a tuple of Args reason
 ```
 
 ## Complete examples
