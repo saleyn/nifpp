@@ -91,6 +91,15 @@ string_test_() ->
         ?_assertError( badarg, invoke_nif({string2, 123}))
         ].
 
+binary_test_() ->
+    [
+        ?_assertEqual( <<"abcabc">>, invoke_nif({binary2, "abc"})),
+        ?_assertEqual( <<"abc123abc123">>, invoke_nif({binary2, "abc123"})),
+        ?_assertEqual( <<"abcabc">>, invoke_nif({binary2, <<"abc">>})),
+        ?_assertEqual( <<"abc123abc123">>, invoke_nif({binary2, <<"abc123">>})),
+        ?_assertError( badarg, invoke_nif({binary2, 123}))
+        ].
+
 double_test_() ->
     [
         ?_assertEqual( 246.0, invoke_nif({double2, 123.0})),

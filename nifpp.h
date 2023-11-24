@@ -202,7 +202,7 @@ namespace nifpp
 {
 
 struct binary;
-TERM make(ErlNifEnv* env, binary &var);
+TERM make(ErlNifEnv* env, binary& var);
 struct binary: public ErlNifBinary
 {
     //binary(): needs_release(false) {}
@@ -224,7 +224,7 @@ struct binary: public ErlNifBinary
         }
     }
 
-    friend TERM make(ErlNifEnv* env, binary &var); // make can set owns_data to false
+    friend TERM make(ErlNifEnv* env, binary& var); // make can set owns_data to false
 
 protected:
     bool needs_release;
@@ -238,6 +238,50 @@ private:
 #ifdef NIFPP_INTRUSIVE_UNIT_TEST
 int binary::release_counter=0;
 #endif
+
+// Make an Erlang binary with space allocated for copying data after this call
+static std::tuple<TERM, unsigned char*>
+make_binary(ErlNifEnv* env, size_t size)
+{
+    ERL_NIF_TERM term;
+    auto   p = enif_make_new_binary(env, size, &term);
+    return std::make_tuple(TERM(term), p);
+}
+
+// Make an Erlang binary from a C++ string
+inline TERM make_binary(ErlNifEnv* env, std::string_view const& str)
+{
+    auto [term, p] = make_binary(env, str.length());
+    memcpy(p, str.data(), str.length());
+    return term;
+}
+
+// Make an Erlang binary from a char buffer
+template <int N>
+TERM make_binary(ErlNifEnv* env, const char (&str)[N])
+{
+    auto size = N-1;
+    auto [term, p] = make_binary(env, size);
+    memcpy(p, str, size);
+    return term;
+}
+
+// Make an Erlang binary from a C++ string
+inline TERM make_binary(ErlNifEnv* env, const char* str)
+{
+    auto len = strlen(str);
+    auto [term, p] = make_binary(env, len);
+    memcpy(p, str, len);
+    return term;
+}
+
+using binary_string = std::string_view;
+
+//using namespace std::string_literals;
+
+inline binary_string operator ""_b(const char* s, size_t sz) { return std::string_view(s, sz); }
+
+inline binary_string operator ""_s(const char* s, size_t sz) { return std::string_view(s, sz); }
 
 //
 // get()/make() functions
@@ -303,17 +347,17 @@ inline bool get(ErlNifEnv* env, ERL_NIF_TERM term, str_atom& var, ErlNifCharEnco
     var.resize(len); // trim terminating null
     return true;
 }
-inline TERM make(ErlNifEnv* env, const str_atom &var)
+inline TERM make(ErlNifEnv* env, const str_atom& var)
 {
     return TERM(enif_make_atom(env, var.c_str()));
 }
 
 // atom
-inline bool get(ErlNifEnv* env, ERL_NIF_TERM term, atom &var)
+inline bool get(ErlNifEnv* env, ERL_NIF_TERM term, atom& var)
 {
     return var.init(env, term);
 }
-inline TERM make(ErlNifEnv *, const atom &var)
+inline TERM make(ErlNifEnv*, const atom& var)
 {
     assert(var.initialized());
     return TERM(var);
@@ -323,41 +367,30 @@ inline TERM make(ErlNifEnv *, const atom &var)
 // "std::string" and "const char*"
 inline bool get(ErlNifEnv* env, ERL_NIF_TERM term, std::string& var, ErlNifCharEncoding encoding = ERL_NIF_LATIN1)
 {
-    // The implementation below iterates through the list twice.  It may
-    // be faster to iterate through the list and append bytes one at a time.
+    // Check if it's a binary
+    if (ErlNifBinary bin; enif_inspect_binary(env, term, &bin))
+    {
+        var = std::string((const char*)bin.data, bin.size);
+        return true;
+    }
+
+    // The implementation below iterates through the list twice.
 
     unsigned len;
     auto ret = enif_get_list_length(env, term, &len); // full list iteration
-    if (!ret)
-    {
-        // not a list, try as binary
-        ErlNifBinary bin;
-        ret = enif_inspect_binary(env, term, &bin);
-        if (!ret) [[unlikely]]
-        {
-            // not a binary either, so fail.
-            return false;
-        }
-        var = std::string((const char*)bin.data, bin.size);
-        return ret;
-    }
+    if (!ret) [[unlikely]]
+        return false;
+
     var.resize(len+1); // +1 for terminating null
     ret = enif_get_string(env, term, var.data(), var.size(), encoding); // full list iteration
-    if (ret > 0)
-        var.resize(ret-1); // trim terminating null
-    else if (ret==0)
-        var.resize(0);
-    else
-    {
-        // oops string somehow got truncated
-        // var is correct size so do nothing
-    }
+
+    assert(ret == int(len+1));
+
+    var.resize(len);
     return ret;
 }
-inline TERM make(ErlNifEnv* env, const std::string& var, ErlNifCharEncoding encoding = ERL_NIF_LATIN1)
-{
-    return TERM(enif_make_string_len(env, var.data(), var.size(), encoding));
-}
+
+// Create a charlist from string
 template <int N>
 inline TERM make(ErlNifEnv* env, const char (&var)[N], ErlNifCharEncoding encoding = ERL_NIF_LATIN1)
 {
@@ -367,7 +400,13 @@ inline TERM make(ErlNifEnv* env, const char* var, ErlNifCharEncoding encoding = 
 {
     return TERM(enif_make_string_len(env, var, strlen(var), encoding));
 }
+inline TERM make(ErlNifEnv* env, const std::string& var, ErlNifCharEncoding encoding = ERL_NIF_LATIN1)
+{
+    return TERM(enif_make_string_len(env, var.data(), var.size(), encoding));
+}
 
+// Create a binary from string
+inline TERM make(ErlNifEnv* env, const binary_string& v) { return make_binary(env, static_cast<const std::string_view&>(v)); }
 
 // bool
 inline bool get(ErlNifEnv* env, ERL_NIF_TERM term, bool& var)
@@ -605,13 +644,25 @@ public:
     T const* get() const { return px; }
     T*       get()       { return px; }
 
-    T& operator*() const
+    T& operator*()
+    {
+        assert(px != 0);
+        return *px;
+    }
+
+    const T& operator*() const
     {
         assert(px != 0);
         return *px;
     }
 
     T* operator->() const
+    {
+        assert(px != 0);
+        return px;
+    }
+
+    T* operator&() const
     {
         assert(px != 0);
         return px;
@@ -1053,6 +1104,12 @@ TERM make(ErlNifEnv* env, const std::tuple<Ts...>& var)
     auto it = array.begin();
     std::apply([env, &it](auto&&... x) { ((*it++ = make(env, x)), ...); }, var);
     return TERM(enif_make_tuple_from_array(env, array.begin(), array.size()));
+}
+
+template<typename... Args>
+TERM make_tuple(ErlNifEnv* env, Args&&... args)
+{
+    return make(env, std::make_tuple(std::forward<Args&&>(args)...));
 }
 
 /*
