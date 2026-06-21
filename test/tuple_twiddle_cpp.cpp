@@ -1,7 +1,7 @@
 //
 // tuple_twiddle_cpp.cpp - Demonstrate nifpp tuple manipulation
 //
-#include "nifpp.h"
+#include "enif.hpp"
 #include <functional>
 
 using std::make_tuple;

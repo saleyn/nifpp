@@ -1,7 +1,7 @@
 //
 // tuple_twiddle_cpp.cpp - Demonstrate nifpp tuple manipulation
 //
-#include "nifpp.h"
+#include "enif.hpp"
 #include <functional>
 #include <sys/timerfd.h>
 #include <unistd.h>
@@ -17,7 +17,10 @@ static atom am_timer;
 
 static ERL_NIF_TERM set_timer(ErlNifEnv* env, int64_t timeout, resource_ptr<int>& fdptr)
 {
-    itimerspec ts{.it_value = timespec{timeout / 1000, (timeout % 1000) * 1'000'000}};
+    itimerspec ts{
+        .it_interval = timespec{0, 0},
+        .it_value    = timespec{timeout / 1000, (timeout % 1000) * 1'000'000}
+    };
 
     if (timerfd_settime(*fdptr, 0, &ts, nullptr) < 0)
         return nifpp::raise_exception(env, "cannot set time", strerror(errno), __LINE__);

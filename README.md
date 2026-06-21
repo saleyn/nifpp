@@ -13,6 +13,8 @@ Think of it as a std::shared_ptr that the emulator can hold references to.
 
 See Erlang NIF documentation [here](https://www.erlang.org/doc/man/erl_nif).
 
+NOTE: the C++ `nifpp.h` file is deprecated and replaced by `enif.hpp`.
+
 ## C++20 compatibility
 
 Nifpp is using C++20 features, so you need a compiler that supports that
@@ -22,7 +24,7 @@ The project compiles with g++ and clang++.
 
 ## Installation
 
-Nifpp is provided as a single header file.  Copy `nifpp.h` into your nif source
+Nifpp is provided as a single header file.  Copy `enif.hpp` into your nif source
 directory.  Wherever you need to implement NIF functions for Erlang/C++ interop,
 typically having to write:
 
@@ -33,7 +35,7 @@ typically having to write:
 instead, write:
 
 ```c++
-    #include "nifpp.h"
+    #include "enif.hpp"
 ```
 
 All nifpp functions are available in the `nifpp` namespace.  The C API remains
@@ -43,8 +45,8 @@ The easiest way to include this dependency is to add the following lines to
 your Makefile:
 
 ```make
-nifpp.h:
-    curl -sO https://raw.githubusercontent.com/saleyn/nifpp/main/nifpp.h
+enif.hpp:
+    curl -sO https://raw.githubusercontent.com/saleyn/nifpp/main/enif.hpp
 ```
 
 ## Initialization
@@ -542,7 +544,7 @@ descriptors or dynamic calls, use the following resource construction:
     // `pid` and create a pid monitor with `enif_monitor_process()`.
 
     // `resource_events` structure takes three callbacks upon construction.
-    // See the definition in `nifpp.h`.  The example below will trigger
+    // See the definition in `enif.hpp`.  The example below will trigger
     // The `monitor_triggered()` member function when a process goes
     // down:
     nifpp::resource_events<some_resource_class> events(
@@ -594,7 +596,7 @@ The following two helper functions are provided for raising exceptions:
     //
     // tuple_twiddle_cpp.cpp - Demonstrate nifpp tuple manipulation
     //
-    #include "nifpp.h"
+    #include "enif.hpp"
     #include <functional>
 
     using std::make_tuple;
@@ -628,7 +630,7 @@ The following two helper functions are provided for raising exceptions:
     // mmap_binary.cpp - Memory map a file and return as a resource binary to Erlang.
     // Requires the Boost library and linkage with libboost_iostreams-mt
     //
-    #include "nifpp.h"
+    #include "enif.hpp"
     #include <boost/iostreams/device/mapped_file.hpp>
 
     using boost::iostreams::mapped_file_source; // encapsulates read-only memory-mapped file

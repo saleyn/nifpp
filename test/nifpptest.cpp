@@ -8,7 +8,7 @@ using std::endl;
 using std::ref;
 
 #define NIFPP_INTRUSIVE_UNIT_TEST
-#include "nifpp.h"
+#include "enif.hpp"
 
 extern nifpp::resource_ptr<int> get_resource_int(int val);
 

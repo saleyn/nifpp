@@ -4,7 +4,7 @@
  *
  */
 
-#include "nifpp.h"
+#include "enif.hpp"
 
 
 nifpp::resource_ptr<int> get_resource_int(int val)

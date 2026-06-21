@@ -2,7 +2,7 @@
 // mmap_binary.cpp - Memory map a file and return as a resource binary to Erlang.
 // Requires the Boost library and linkage with libboost_iostreams-mt
 //
-#include "nifpp.h"
+#include "enif.hpp"
 #include <boost/iostreams/device/mapped_file.hpp>
 
 using boost::iostreams::mapped_file_source; // encapsulates read-only memory-mapped file

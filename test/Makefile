@@ -27,16 +27,16 @@ all: compile
 compile: nifpptest.so tuple_twiddle_cpp.so$(SFX) tuple_twiddle_c.so$(SFX) selecttest.so$(SFX) \
   nifpptest.beam tuple_twiddle_cpp.beam tuple_twiddle_c.beam selecttest.beam
 
-ast: tuple_twiddle_cpp.cpp ../nifpp.h
+ast: tuple_twiddle_cpp.cpp ../enif.hpp
 	clang++ $(COMMON_FLAGS) $(CPPFLAGS) -Xclang -ast-print -fsyntax-only $< > $<.ast
 
-%_c.o: %_c.c ../nifpp.h
+%_c.o: %_c.c ../enif.hpp
 	$(CC) $(COMMON_FLAGS) $(CFLAGS) -c $<
 
-%.o: %.cpp ../nifpp.h
+%.o: %.cpp ../enif.hpp
 	$(CXX) $(COMMON_FLAGS) $(CPPFLAGS) -c $<
 
-selecttest.o: selecttest.cpp ../nifpp.h
+selecttest.o: selecttest.cpp ../enif.hpp
 	$(CXX) $(COMMON_FLAGS) $(CPPFLAGS) -fpermissive -c $<
 
 nifpptest.so: nifpptest.o nifpptest_2tu.o
