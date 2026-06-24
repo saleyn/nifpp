@@ -23,9 +23,7 @@
 //  See http://www.boost.org/libs/smart_ptr/intrusive_ptr.html for documentation.
 //
 
-
-#ifndef NIFPP_H
-#define NIFPP_H
+#pragma once
 
 // If you are getting the following warning, add "-std=C99" to CFLAGS
 // erlang/26.0/erts-14.0/include/erl_nif.h:192:21: warning: comma at end of enumerator list [-Wpedantic]
@@ -550,11 +548,11 @@ template<typename T>
 bool  get(ErlNifEnv* env, ERL_NIF_TERM term, resource_ptr<T>& var);
 
 template <typename T>
-using ResourceDownEvent = void (*)(T*, ErlNifEnv*, ErlNifPid*, ErlNifMonitor*);
+using ResourceDownEvent = std::function<void(T*, ErlNifEnv*, ErlNifPid*, ErlNifMonitor*)>;
 template <typename T>
-using ResourceStopEvent = void (*)(T*, ErlNifEnv*, ErlNifEvent event, int is_direct_call);
+using ResourceStopEvent = std::function<void(T*, ErlNifEnv*, ErlNifEvent event, int is_direct_call)>;
 template <typename T>
-using ResourceDynCallEvent = void (*)(T*, ErlNifEnv*, void* call_data);
+using ResourceDynCallEvent = std::function<void(T*, ErlNifEnv*, void* call_data)>;
 
 template<typename T>
 struct resource_events {
@@ -638,37 +636,21 @@ public:
     }
 
     void reset() { this_type().swap(*this); }
-
     void reset(T* rhs) { this_type(rhs).swap(*this); }
 
     T const* get() const { return px; }
     T*       get()       { return px; }
 
-    T& operator*()
-    {
-        assert(px != 0);
-        return *px;
-    }
+    T const& operator*()  const { assert(px != 0); return *px; }
+    T&       operator*()        { assert(px != 0); return *px; }
 
-    const T& operator*() const
-    {
-        assert(px != 0);
-        return *px;
-    }
+    T const* operator->() const { assert(px != 0); return px; }
+    T*       operator->()       { assert(px != 0); return px; }
 
-    T* operator->() const
-    {
-        assert(px != 0);
-        return px;
-    }
+    T const* operator&()  const { assert(px != 0); return px; }
+    T*       operator&()        { assert(px != 0); return px; }
 
-    T* operator&() const
-    {
-        assert(px != 0);
-        return px;
-    }
-
-    operator bool () const { return px != 0; }
+    operator bool()       const { return px != 0; }
 
     void swap(resource_ptr & rhs)
     {
@@ -678,7 +660,6 @@ public:
     }
 
 private:
-
     T* px;
 };
 
@@ -1425,5 +1406,3 @@ inline TERM raise_exception(ErlNifEnv* env, T&& arg, Args&&... args) {
 }
 
 } // namespace nifpp
-
-#endif // NIFPP_H

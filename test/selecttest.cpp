@@ -44,9 +44,12 @@ static ERL_NIF_TERM set_timer(ErlNifEnv* env, int64_t timeout, resource_ptr<int>
 
 static ERL_NIF_TERM create_timer_nif(ErlNifEnv* env, [[maybe_unused]] int argc, const ERL_NIF_TERM argv[])
 {
-    int64_t timeout = -1;
+    int64_t   timeout            = -1;
+    ErlNifPid notify_pid_on_stop = ErlNifPid{.pid = am_nil};
     assert(argc <= 1);
-    if (argc == 1 && (!nifpp::get(env, argv[0], timeout) || timeout < 0))
+    if (argc > 0 && !enif_is_identical(argv[0], am_nil) && (!nifpp::get(env, argv[0], timeout) || timeout < 0))
+        return enif_make_badarg(env);
+    if (argc == 2 && !nifpp::get(env, argv[1], notify_pid_on_stop))
         return enif_make_badarg(env);
 
     int fd = timerfd_create(CLOCK_REALTIME, TFD_NONBLOCK | TFD_CLOEXEC);
@@ -54,8 +57,10 @@ static ERL_NIF_TERM create_timer_nif(ErlNifEnv* env, [[maybe_unused]] int argc, 
     if (fd < 0)
         return nifpp::raise_exception(env, "cannot create timer", strerror(errno), __LINE__);
 
-    ResourceStopEvent<int> stop = [](int* fd_ptr, ErlNifEnv*, ErlNifEvent, [[maybe_unused]] int is_direct) {
+    ResourceStopEvent<int> stop = [=](int* fd_ptr, ErlNifEnv* env, ErlNifEvent, [[maybe_unused]] int is_direct) {
         [[maybe_unused]] auto res = fd_ptr ? close(*fd_ptr) : 0;
+        if (notify_pid_on_stop.pid != am_nil)
+            enif_send(env, &notify_pid_on_stop, nifpp::make_tuple(env, am_timer, )))
         //fprintf(stderr, "==> Closing timer resource %d: %d%s\r\n",
         //    fd_ptr ? *fd_ptr : 0, res, is_direct ? " (direct)" : " (indirect)");
     };
