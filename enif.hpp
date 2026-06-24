@@ -58,7 +58,7 @@ namespace nifpp
 // Library version
 
 static constexpr const int NIFPP_MAJOR_VSN = 2;
-static constexpr const int NIFPP_MINOR_VSN = 1;
+static constexpr const int NIFPP_MINOR_VSN = 2;
 
 struct TERM
 {
@@ -201,11 +201,12 @@ namespace nifpp
 
 struct binary;
 TERM make(ErlNifEnv* env, binary& var);
+
 struct binary: public ErlNifBinary
 {
     //binary(): needs_release(false) {}
     explicit binary(size_t _size)
-        : needs_release(enif_alloc_binary(_size, this))
+        : needs_release(enif_alloc_binary(_size, this)), allocated(needs_release)
     {}
 
 #ifdef NIFPP_INTRUSIVE_UNIT_TEST
@@ -222,12 +223,22 @@ struct binary: public ErlNifBinary
         }
     }
 
+    // Whether the underlying enif_alloc_binary() call (made by the
+    // constructor) actually succeeded -- unlike needs_release (which make()
+    // clears once ownership of the data is transferred to a TERM), this
+    // never changes after construction, so it's the only reliable way to
+    // detect allocation failure (e.g. out of memory) from outside the class.
+    bool ok() const { return allocated; }
+    explicit operator bool() const { return allocated; }
+
     friend TERM make(ErlNifEnv* env, binary& var); // make can set owns_data to false
 
 protected:
     bool needs_release;
 
 private:
+    bool allocated;
+
     // there's no nice way to keep track of owns_data in copies, so just prevent copying
     binary(const binary &) = delete;
     binary & operator=(const binary &) = delete;
@@ -247,7 +258,7 @@ make_binary(ErlNifEnv* env, size_t size)
 }
 
 // Make an Erlang binary from a C++ string
-inline TERM make_binary(ErlNifEnv* env, std::string_view const& str)
+inline TERM make_binary(ErlNifEnv* env, const std::string_view str)
 {
     auto [term, p] = make_binary(env, str.length());
     memcpy(p, str.data(), str.length());
@@ -404,7 +415,7 @@ inline TERM make(ErlNifEnv* env, const std::string& var, ErlNifCharEncoding enco
 }
 
 // Create a binary from string
-inline TERM make(ErlNifEnv* env, const binary_string& v) { return make_binary(env, static_cast<const std::string_view&>(v)); }
+inline TERM make(ErlNifEnv* env, const binary_string& v) { return make_binary(env, std::string_view{v}); }
 
 // bool
 inline bool get(ErlNifEnv* env, ERL_NIF_TERM term, bool& var)
@@ -548,11 +559,11 @@ template<typename T>
 bool  get(ErlNifEnv* env, ERL_NIF_TERM term, resource_ptr<T>& var);
 
 template <typename T>
-using ResourceDownEvent = std::function<void(T*, ErlNifEnv*, ErlNifPid*, ErlNifMonitor*)>;
+using ResourceDownEvent = void (*)(T*, ErlNifEnv*, ErlNifPid*, ErlNifMonitor*);
 template <typename T>
-using ResourceStopEvent = std::function<void(T*, ErlNifEnv*, ErlNifEvent event, int is_direct_call)>;
+using ResourceStopEvent = void (*)(T*, ErlNifEnv*, ErlNifEvent event, int is_direct_call);
 template <typename T>
-using ResourceDynCallEvent = std::function<void(T*, ErlNifEnv*, void* call_data)>;
+using ResourceDynCallEvent = void (*)(T*, ErlNifEnv*, void* call_data);
 
 template<typename T>
 struct resource_events {
@@ -636,21 +647,37 @@ public:
     }
 
     void reset() { this_type().swap(*this); }
+
     void reset(T* rhs) { this_type(rhs).swap(*this); }
 
     T const* get() const { return px; }
     T*       get()       { return px; }
 
-    T const& operator*()  const { assert(px != 0); return *px; }
-    T&       operator*()        { assert(px != 0); return *px; }
+    T& operator*()
+    {
+        assert(px != 0);
+        return *px;
+    }
 
-    T const* operator->() const { assert(px != 0); return px; }
-    T*       operator->()       { assert(px != 0); return px; }
+    const T& operator*() const
+    {
+        assert(px != 0);
+        return *px;
+    }
 
-    T const* operator&()  const { assert(px != 0); return px; }
-    T*       operator&()        { assert(px != 0); return px; }
+    T* operator->() const
+    {
+        assert(px != 0);
+        return px;
+    }
 
-    operator bool()       const { return px != 0; }
+    T* operator&() const
+    {
+        assert(px != 0);
+        return px;
+    }
+
+    operator bool () const { return px != 0; }
 
     void swap(resource_ptr & rhs)
     {
@@ -660,6 +687,7 @@ public:
     }
 
 private:
+
     T* px;
 };
 
@@ -820,6 +848,11 @@ inline bool operator==(ErlNifPid const& a, ErlNifPid const& b)
     return enif_compare_pids(&a, &b) == 0;
 }
 
+inline bool operator!=(ErlNifPid const& a, ErlNifPid const& b)
+{
+    return enif_compare_pids(&a, &b) != 0;
+}
+
 inline bool operator<(ErlNifPid const& a, ErlNifPid const& b)
 {
     return enif_compare_pids(&a, &b) < 0;
@@ -838,6 +871,11 @@ inline bool operator==(ErlNifMonitor const& a, ErlNifMonitor const& b)
     return enif_compare_monitors(&a, &b) == 0;
 }
 
+inline bool operator!=(ErlNifMonitor const& a, ErlNifMonitor const& b)
+{
+    return enif_compare_monitors(&a, &b) != 0;
+}
+
 inline bool operator<(ErlNifMonitor const& a, ErlNifMonitor const& b)
 {
     return enif_compare_monitors(&a, &b) < 0;
@@ -846,6 +884,98 @@ inline bool operator<(ErlNifMonitor const& a, ErlNifMonitor const& b)
 inline bool operator>(ErlNifMonitor const& a, ErlNifMonitor const& b)
 {
     return enif_compare_monitors(&a, &b) > 0;
+}
+
+//------------------------------------------------------------------------------
+// Process identity / messaging
+//------------------------------------------------------------------------------
+
+// The calling process's pid (only meaningful from a non-dirty NIF call,
+// per enif_self()'s own restriction).
+inline ErlNifPid self(ErlNifEnv* env)
+{
+    ErlNifPid pid;
+    enif_self(env, &pid);
+    return pid;
+}
+
+// enif_send() never takes ownership of msg_env (unlike enif_select(),
+// see msg_env below) -- the caller must still free it (or let a
+// nifpp::msg_env do so) after this call, success or not.
+inline bool send(ErlNifEnv* env, ErlNifPid* to, ErlNifEnv* msg_env, TERM msg)
+{
+    return enif_send(env, to, msg_env, msg) != 0;
+}
+
+// RAII wrapper for a message environment (enif_alloc_env()/enif_free_env()).
+//
+// Two different ownership-transfer conventions meet here: enif_send() never
+// takes ownership of msg_env (the caller must always free it, success or
+// failure), while enif_select()/enif_select_read()/enif_select_write()
+// *always* take ownership of msg_env, regardless of outcome -- the caller
+// must never free it after passing it in. A plain msg_env used as an
+// ErlNifEnv* (implicit conversion below) covers the first case, since the
+// destructor frees it once the call site goes out of scope; release()
+// covers the second, handing the raw pointer to the select call and
+// disowning it here so the destructor becomes a no-op.
+class msg_env
+{
+public:
+    msg_env() : m_env(enif_alloc_env()) {}
+    ~msg_env() { if (m_env) enif_free_env(m_env); }
+
+    msg_env(msg_env const&) = delete;
+    msg_env& operator=(msg_env const&) = delete;
+
+    msg_env(msg_env&& rhs) noexcept : m_env(rhs.m_env) { rhs.m_env = nullptr; }
+    msg_env& operator=(msg_env&& rhs) noexcept
+    {
+        if (this != &rhs) {
+            if (m_env) enif_free_env(m_env);
+            m_env = rhs.m_env;
+            rhs.m_env = nullptr;
+        }
+        return *this;
+    }
+
+    operator ErlNifEnv*() const { return m_env; }
+
+    // Relinquish ownership for APIs (enif_select and friends) that always
+    // consume/free the environment themselves.
+    ErlNifEnv* release() { auto* e = m_env; m_env = nullptr; return e; }
+
+private:
+    ErlNifEnv* m_env;
+};
+
+//------------------------------------------------------------------------------
+// enif_select wrappers
+//------------------------------------------------------------------------------
+
+// `obj` is whatever resource pointer (or other registered identity) was
+// associated with `event` via enif_select; passed through as void* exactly
+// like the raw API, just typed at the call site instead of cast manually.
+template<typename T>
+inline int select_read(ErlNifEnv* env, ErlNifEvent event, T* obj, const ErlNifPid* pid,
+                        TERM msg, msg_env& env_to_consume)
+{
+    return enif_select_read(env, event, (void*)obj, pid, msg, env_to_consume.release());
+}
+
+template<typename T>
+inline int select_write(ErlNifEnv* env, ErlNifEvent event, T* obj, const ErlNifPid* pid,
+                         TERM msg, msg_env& env_to_consume)
+{
+    return enif_select_write(env, event, (void*)obj, pid, msg, env_to_consume.release());
+}
+
+// No message is constructed for ERL_NIF_SELECT_STOP, so there's no
+// msg_env to consume here -- enif_select() ignores the msg argument for
+// this mode.
+template<typename T>
+inline int select_stop(ErlNifEnv* env, ErlNifEvent event, T* obj)
+{
+    return enif_select(env, event, ERL_NIF_SELECT_STOP, (void*)obj, nullptr, ERL_NIF_TERM(0));
 }
 
 //------------------------------------------------------------------------------
@@ -1406,3 +1536,5 @@ inline TERM raise_exception(ErlNifEnv* env, T&& arg, Args&&... args) {
 }
 
 } // namespace nifpp
+
+#endif // NIFPP_H
