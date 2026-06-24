@@ -26,7 +26,7 @@ static ERL_NIF_TERM set_timer(ErlNifEnv* env, int64_t timeout, resource_ptr<int>
         return nifpp::raise_exception(env, "cannot set time", strerror(errno), __LINE__);
 
     auto msg_env = enif_alloc_env();
-    auto msg = make(msg_env, std::make_pair(am_select, am_timer));
+    auto msg     = make(msg_env, std::make_pair(am_select, am_timer));
 
     int r;
 
@@ -57,10 +57,13 @@ static ERL_NIF_TERM create_timer_nif(ErlNifEnv* env, [[maybe_unused]] int argc, 
     if (fd < 0)
         return nifpp::raise_exception(env, "cannot create timer", strerror(errno), __LINE__);
 
-    ResourceStopEvent<int> stop = [=](int* fd_ptr, ErlNifEnv* env, ErlNifEvent, [[maybe_unused]] int is_direct) {
+    ResourceStopEvent<int> stop = [=](int* fd_ptr, ErlNifEnv* env, [[maybe_unused]] int event, [[maybe_unused]] int is_direct) {
         [[maybe_unused]] auto res = fd_ptr ? close(*fd_ptr) : 0;
-        if (notify_pid_on_stop.pid != am_nil)
-            enif_send(env, &notify_pid_on_stop, nifpp::make_tuple(env, am_timer, )))
+        if (notify_pid_on_stop.pid != am_nil) {
+            nifpp::msg_env msg_env;
+            auto msg = nifpp::make_tuple(msg_env, am_timer, am_ok);
+            enif_send(env, &notify_pid_on_stop, msg_env.release(), msg);
+        }
         //fprintf(stderr, "==> Closing timer resource %d: %d%s\r\n",
         //    fd_ptr ? *fd_ptr : 0, res, is_direct ? " (direct)" : " (indirect)");
     };

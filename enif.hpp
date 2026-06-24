@@ -559,11 +559,11 @@ template<typename T>
 bool  get(ErlNifEnv* env, ERL_NIF_TERM term, resource_ptr<T>& var);
 
 template <typename T>
-using ResourceDownEvent = void (*)(T*, ErlNifEnv*, ErlNifPid*, ErlNifMonitor*);
+using ResourceDownEvent = std::function<void(T*, ErlNifEnv*, ErlNifPid*, ErlNifMonitor*)>;
 template <typename T>
-using ResourceStopEvent = void (*)(T*, ErlNifEnv*, ErlNifEvent event, int is_direct_call);
+using ResourceStopEvent = std::function<void(T*, ErlNifEnv*, ErlNifEvent event, int is_direct_call)>;
 template <typename T>
-using ResourceDynCallEvent = void (*)(T*, ErlNifEnv*, void* call_data);
+using ResourceDynCallEvent = std::function<void(T*, ErlNifEnv*, void* call_data)>;
 
 template<typename T>
 struct resource_events {
@@ -1536,5 +1536,3 @@ inline TERM raise_exception(ErlNifEnv* env, T&& arg, Args&&... args) {
 }
 
 } // namespace nifpp
-
-#endif // NIFPP_H

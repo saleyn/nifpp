@@ -5,3 +5,4 @@ test/*.dump
 **/*.o
 **/*.so
 **/*.so.dSYM*
+rebar3.crashdump
