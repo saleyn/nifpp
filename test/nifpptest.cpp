@@ -1,4 +1,6 @@
 #include <iostream>
+#include <cstdint>
+#include <cstring>
 using std::cout;
 using std::cerr;
 using std::endl;
@@ -472,6 +474,199 @@ ERL_NIF_TERM nif_main(ErlNifEnv* env, nifpp::TERM term)
             return raise_exception(env, am_error, "exception");
         else
             return raise_exception(env, cmddata);
+    }
+    // Test new binary ok() and operator bool() methods
+    else if(cmd=="binary_ok_test")
+    {
+        int size;
+        get_throws(env, cmddata, size);
+
+        binary bin(size);
+        bool is_ok = bin.ok();
+        bool bool_cast = static_cast<bool>(bin);
+
+        return make(env, std::make_tuple(is_ok, bool_cast));
+    }
+    // Test binary allocation failure (simulate with huge size)
+    else if(cmd=="binary_fail_test")
+    {
+        // Try to allocate a very large binary that should fail
+        binary bin(SIZE_MAX - 1);
+        bool is_ok = bin.ok();
+        bool bool_cast = static_cast<bool>(bin);
+
+        return make(env, std::make_tuple(is_ok, bool_cast));
+    }
+    // Test PID inequality operator
+    else if(cmd=="pid_neq_test")
+    {
+        ErlNifPid pid1, pid2;
+        auto pidtuple = std::tie(pid1, pid2);
+        get_throws(env, cmddata, pidtuple);
+
+        bool are_equal = (pid1 == pid2);
+        bool are_not_equal = (pid1 != pid2);
+
+        return make(env, std::make_tuple(are_equal, are_not_equal));
+    }
+    // Test Monitor inequality operator
+    else if(cmd=="monitor_neq_test")
+    {
+        // Since we don't have get() support for ErlNifMonitor directly,
+        // we'll create two monitors and test the inequality operator
+        ErlNifMonitor mon1, mon2;
+
+        // Initialize monitors (they start with some default state)
+        memset(&mon1, 0, sizeof(mon1));
+        memset(&mon2, 1, sizeof(mon2)); // Different pattern
+
+        bool are_equal = (mon1 == mon2);
+        bool are_not_equal = (mon1 != mon2);
+
+        return make(env, std::make_tuple(are_equal, are_not_equal));
+    }
+    // Test self() function
+    else if(cmd=="self_test")
+    {
+        ErlNifPid my_pid = self(env);
+        return make(env, my_pid);
+    }
+    // Test msg_env class
+    else if(cmd=="msg_env_test")
+    {
+        // Create result tuple components by copying from message environments
+        TERM copied_term1, copied_term2, copied_term3;
+
+        {
+            // Scope 1: Test basic msg_env usage
+            msg_env env1;
+            TERM term1 = make(env1, 42);
+            copied_term1 = TERM(enif_make_copy(env, term1));
+            // env1 destructor will be called here, but copied_term1 is safe
+        }
+
+        {
+            // Scope 2: Test with different msg_env
+            msg_env env2;
+            TERM term2 = make(env2, str_atom("test"));
+            copied_term2 = TERM(enif_make_copy(env, term2));
+            // env2 destructor will be called here, but copied_term2 is safe
+        }
+
+        {
+            // Scope 3: Test move constructor
+            msg_env env1_original;
+            msg_env env3 = std::move(env1_original);  // env1_original.m_env is now nullptr
+            TERM term3 = make(env3, "hello");
+            copied_term3 = TERM(enif_make_copy(env, term3));
+            // env3 destructor will be called here, but copied_term3 is safe
+            // env1_original destructor is safe (m_env is nullptr)
+        }
+
+        // Return a tuple with the copied terms - all source environments are now freed
+        return make(env, std::make_tuple(copied_term1, copied_term2, copied_term3));
+    }
+    // Test send() function
+    else if(cmd=="send_test")
+    {
+        ErlNifPid target_pid;
+        TERM message;
+        auto sendtuple = std::tie(target_pid, message);
+        get_throws(env, cmddata, sendtuple);
+
+        msg_env msg_env_obj;
+        TERM copied_msg = make(msg_env_obj, message);
+
+        bool send_result = send(env, &target_pid, msg_env_obj, copied_msg);
+
+        return make(env, send_result);
+    }
+    // Test resource type with std::function callbacks (new ResourceDownEvent type)
+    else if(cmd=="resource_function_callback_test")
+    {
+        ErlNifPid pid;
+        get_throws(env, cmddata, pid);
+
+        // Create a resource with std::function-based callbacks
+        resource_events<tracetype> events(
+            [](tracetype* obj, ErlNifEnv*, ErlNifPid* down_pid, ErlNifMonitor*) {
+                obj->monitor_triggered(down_pid);
+            });
+
+        auto res_ptr = construct_resource_with_events<tracetype>(events, env, pid);
+        return make(env, res_ptr);
+    }
+    // Test new range-checking get() functions for int
+    else if(cmd=="int_range_test")
+    {
+        int value;
+        int min, max;
+        auto rangetuple = std::tie(value, min, max);
+        get_throws(env, cmddata, rangetuple);
+
+        int result;
+        bool success = get(env, make(env, value), result, min, max);
+        return make(env, std::make_tuple(success, result));
+    }
+    // Test new range-checking get() functions for unsigned int
+    else if(cmd=="uint_range_test")
+    {
+        unsigned int value;
+        unsigned int min, max;
+        auto rangetuple = std::tie(value, min, max);
+        get_throws(env, cmddata, rangetuple);
+
+        unsigned int result;
+        bool success = get(env, make(env, value), result, min, max);
+        return make(env, std::make_tuple(success, result));
+    }
+    // Test new range-checking get() functions for long
+    else if(cmd=="long_range_test")
+    {
+        long value;
+        long min, max;
+        auto rangetuple = std::tie(value, min, max);
+        get_throws(env, cmddata, rangetuple);
+
+        long result;
+        bool success = get(env, make(env, value), result, min, max);
+        return make(env, std::make_tuple(success, result));
+    }
+    // Test new range-checking get() functions for unsigned long
+    else if(cmd=="ulong_range_test")
+    {
+        unsigned long value;
+        unsigned long min, max;
+        auto rangetuple = std::tie(value, min, max);
+        get_throws(env, cmddata, rangetuple);
+
+        unsigned long result;
+        bool success = get(env, make(env, value), result, min, max);
+        return make(env, std::make_tuple(success, result));
+    }
+    // Test new range-checking get() functions for ErlNifSInt64
+    else if(cmd=="int64_range_test")
+    {
+        ErlNifSInt64 value;
+        ErlNifSInt64 min, max;
+        auto rangetuple = std::tie(value, min, max);
+        get_throws(env, cmddata, rangetuple);
+
+        ErlNifSInt64 result;
+        bool success = get(env, make(env, value), result, min, max);
+        return make(env, std::make_tuple(success, result));
+    }
+    // Test new range-checking get() functions for ErlNifUInt64
+    else if(cmd=="uint64_range_test")
+    {
+        ErlNifUInt64 value;
+        ErlNifUInt64 min, max;
+        auto rangetuple = std::tie(value, min, max);
+        get_throws(env, cmddata, rangetuple);
+
+        ErlNifUInt64 result;
+        bool success = get(env, make(env, value), result, min, max);
+        return make(env, std::make_tuple(success, result));
     }
 
 

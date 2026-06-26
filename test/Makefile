@@ -25,7 +25,8 @@ endif
 all: compile
 
 compile: nifpptest.so tuple_twiddle_cpp.so$(SFX) tuple_twiddle_c.so$(SFX) selecttest.so$(SFX) \
-  nifpptest.beam tuple_twiddle_cpp.beam tuple_twiddle_c.beam selecttest.beam
+  select_wrapper_test.so$(SFX) nifpptest.beam tuple_twiddle_cpp.beam tuple_twiddle_c.beam \
+  selecttest.beam select_wrapper_test.beam
 
 ast: tuple_twiddle_cpp.cpp ../enif.hpp
 	clang++ $(COMMON_FLAGS) $(CPPFLAGS) -Xclang -ast-print -fsyntax-only $< > $<.ast
@@ -45,6 +46,9 @@ nifpptest.so: nifpptest.o nifpptest_2tu.o
 selecttest.so: selecttest.o
 	$(CXX) $(LDFLAGS) $(LD_COMMON_FLAGS) -o $@ $^
 
+select_wrapper_test.so: select_wrapper_test.o
+	$(CXX) $(LDFLAGS) $(LD_COMMON_FLAGS) -o $@ $^
+
 mmap_binary.so: mmap_binary.o
 	$(CXX) $(LDFLAGS) $(LD_COMMON_FLAGS) -lboost_iostreams-mt -o $@ $<
 
@@ -59,6 +63,7 @@ tuple_twiddle_cpp.so: tuple_twiddle_cpp.o
 
 test: compile
 	erl -noshell -noinput -s selecttest -eval 'halt(0).'
+	erl -noshell -noinput -s select_wrapper_test -eval 'halt(0).'
 	erl -noshell -noinput -s nifpptest
 
 clean:

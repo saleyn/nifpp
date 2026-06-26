@@ -58,7 +58,7 @@ namespace nifpp
 // Library version
 
 static constexpr const int NIFPP_MAJOR_VSN = 2;
-static constexpr const int NIFPP_MINOR_VSN = 2;
+static constexpr const int NIFPP_MINOR_VSN = 3;
 
 struct TERM
 {
@@ -455,10 +455,13 @@ inline TERM make(ErlNifEnv* env, const double var)
     return TERM(enif_make_double(env, var));
 }
 
-
 inline bool get(ErlNifEnv* env, ERL_NIF_TERM term, int& var)
 {
     return enif_get_int(env, term, &var);
+}
+inline bool get(ErlNifEnv* env, ERL_NIF_TERM term, int& var, int min, int max)
+{
+    return enif_get_int(env, term, &var) && var >= min && var <= max;
 }
 inline TERM make(ErlNifEnv* env, const int var)
 {
@@ -470,6 +473,10 @@ inline bool get(ErlNifEnv* env, ERL_NIF_TERM term, unsigned int& var)
 {
     return enif_get_uint(env, term, &var);
 }
+inline bool get(ErlNifEnv* env, ERL_NIF_TERM term, unsigned int& var, unsigned int min, unsigned int max)
+{
+    return enif_get_uint(env, term, &var) && var >= min && var <= max;
+}
 inline TERM make(ErlNifEnv* env, const unsigned int var)
 {
     return TERM(enif_make_uint(env, var));
@@ -480,6 +487,10 @@ inline bool get(ErlNifEnv* env, ERL_NIF_TERM term, ErlNifSInt64& var)
 {
     return enif_get_int64(env, term, &var);
 }
+inline bool get(ErlNifEnv* env, ERL_NIF_TERM term, ErlNifSInt64& var, ErlNifSInt64 min, ErlNifSInt64 max)
+{
+    return enif_get_int64(env, term, &var) && var >= min && var <= max;
+}
 inline TERM make(ErlNifEnv* env, const ErlNifSInt64 var)
 {
     return TERM(enif_make_int64(env, var));
@@ -488,6 +499,10 @@ inline TERM make(ErlNifEnv* env, const ErlNifSInt64 var)
 inline bool get(ErlNifEnv* env, ERL_NIF_TERM term, ErlNifUInt64& var)
 {
     return enif_get_uint64(env, term, &var);
+}
+inline bool get(ErlNifEnv* env, ERL_NIF_TERM term, ErlNifUInt64& var, ErlNifUInt64 min, ErlNifUInt64 max)
+{
+    return enif_get_uint64(env, term, &var) && var >= min && var <= max;
 }
 inline TERM make(ErlNifEnv* env, const ErlNifUInt64 var)
 {
@@ -500,6 +515,10 @@ inline bool get(ErlNifEnv* env, ERL_NIF_TERM term, long& var)
 {
     return enif_get_long(env, term, &var);
 }
+inline bool get(ErlNifEnv* env, ERL_NIF_TERM term, long& var, long min, long max)
+{
+    return enif_get_long(env, term, &var) && var >= min && var <= max;
+}
 inline TERM make(ErlNifEnv* env, const long var)
 {
     return TERM(enif_make_long(env, var));
@@ -508,6 +527,10 @@ inline TERM make(ErlNifEnv* env, const long var)
 inline bool get(ErlNifEnv* env, ERL_NIF_TERM term, unsigned long& var)
 {
     return enif_get_ulong(env, term, &var);
+}
+inline bool get(ErlNifEnv* env, ERL_NIF_TERM term, unsigned long& var, unsigned long min, unsigned long max)
+{
+    return enif_get_ulong(env, term, &var) && var >= min && var <= max;
 }
 inline TERM make(ErlNifEnv* env, const unsigned long var)
 {
