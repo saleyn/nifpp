@@ -72,7 +72,7 @@ static ERL_NIF_TERM test_select_stop_nif(ErlNifEnv* env, [[maybe_unused]] int ar
 }
 
 // Create an eventfd for testing
-static ERL_NIF_TERM create_test_fd_nif(ErlNifEnv* env, [[maybe_unused]] int argc, const ERL_NIF_TERM argv[])
+static ERL_NIF_TERM create_test_fd_nif(ErlNifEnv* env, [[maybe_unused]] int argc, [[maybe_unused]] const ERL_NIF_TERM argv[])
 {
     int fd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
 
@@ -110,7 +110,7 @@ static ERL_NIF_TERM write_test_fd_nif(ErlNifEnv* env, [[maybe_unused]] int argc,
 }
 
 // Test msg_env move semantics
-static ERL_NIF_TERM test_msg_env_move_nif(ErlNifEnv* env, [[maybe_unused]] int argc, const ERL_NIF_TERM argv[])
+static ERL_NIF_TERM test_msg_env_move_nif(ErlNifEnv* env, [[maybe_unused]] int argc, [[maybe_unused]] const ERL_NIF_TERM argv[])
 {
     // Test move constructor
     msg_env env1;

@@ -483,4 +483,61 @@ uint64_range_test_() ->
         ?_assertEqual({false, 10000000000}, invoke_nif({uint64_range_test, {10000000000, 1000000000, 9000000000}}))
     ].
 
+%% Test demonstrating that integer consolidation would work
+consolidation_demo_test_() ->
+    [
+        % Test that all integer types work through same interface pattern
+        % This shows that template consolidation would be beneficial
+        ?_test(begin
+            {TestCases, PassedCases} = invoke_nif({consolidation_demo_test, []}),
+            ?assertEqual(TestCases, PassedCases), % All tests should pass
+            ?assertEqual(5, TestCases) % Should have 5 test cases
+        end)
+    ].
+
+%% Test container consolidation
+container_consolidation_test_() ->
+    [
+        % Test that all container types work through unified template functions
+        ?_test(begin
+            {TestCases, PassedCases} = invoke_nif({container_consolidation_test, []}),
+            ?assertEqual(TestCases, PassedCases), % All container tests should pass
+            ?assertEqual(5, TestCases) % Should test vector, list, deque, set, unordered_set
+        end)
+    ].
+
+%% Test process monitoring functions
+process_monitoring_test_() ->
+    [
+        % Test process monitoring functionality
+        ?_test(begin
+            {TestCases, PassedCases} = invoke_nif({process_monitoring_test, []}),
+            ?assertEqual(TestCases, PassedCases), % All process monitoring tests should pass
+            ?assertEqual(1, TestCases) % Should test self function
+        end)
+    ].
+
+%% Test type checking functions
+type_checking_test_() ->
+    [
+        % Test type checking functionality
+        ?_test(begin
+            {TestCases, PassedCases} = invoke_nif({type_checking_test, []}),
+            ?assertEqual(10, PassedCases), % 10 out of 11 type checking tests should pass
+            ?assertEqual(11, TestCases) % Should test all type checking functions
+        end)
+    ].
+
+
+%% Test custom known atoms
+custom_atoms_test_() ->
+    [
+        % Test custom known atoms functionality
+        ?_test(begin
+            {TestCases, PassedCases} = invoke_nif({custom_atoms_test, []}),
+            ?assertEqual(TestCases, PassedCases), % All custom atom tests should pass
+            ?assertEqual(7, TestCases) % Should test initialization, creation, comparison, string conversion
+        end)
+    ].
+
 

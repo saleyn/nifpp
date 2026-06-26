@@ -12,6 +12,11 @@ using std::ref;
 #define NIFPP_INTRUSIVE_UNIT_TEST
 #include "enif.hpp"
 
+// Test custom known atoms
+NIFPP_ADD_KNOWN_ATOM(am_test_atom)
+NIFPP_ADD_KNOWN_ATOM(am_custom_success)
+NIFPP_ADD_KNOWN_ATOM(am_my_special_atom)
+
 extern nifpp::resource_ptr<int> get_resource_int(int val);
 
 using namespace nifpp;
@@ -139,7 +144,9 @@ ERL_NIF_TERM nif_main(ErlNifEnv* env, nifpp::TERM term)
     nifpp::TERM cmddata;
     auto cmdtup=std::tie(cmd,cmddata);
     get_throws(env, term, cmdtup);
+    #ifdef DEBUG_OUTPUT
     cout << "cmd = " << cmd << "\r\n";
+    #endif
     if(cmd=="atom2")
     {
         str_atom in;
@@ -667,6 +674,195 @@ ERL_NIF_TERM nif_main(ErlNifEnv* env, nifpp::TERM term)
         ErlNifUInt64 result;
         bool success = get(env, make(env, value), result, min, max);
         return make(env, std::make_tuple(success, result));
+    }
+    // Test that demonstrates template consolidation would work
+    else if(cmd=="consolidation_demo_test")
+    {
+        // This test shows that all integer types can work through same interface
+        // Currently we have separate functions, but templates could unify this
+
+        int test_cases = 0;
+        int passed_cases = 0;
+
+        // Test int
+        int i_val = 42;
+        int i_result;
+        if (get(env, make(env, i_val), i_result) && i_result == i_val) passed_cases++;
+        test_cases++;
+
+        // Test unsigned int
+        unsigned int ui_val = 42u;
+        unsigned int ui_result;
+        if (get(env, make(env, ui_val), ui_result) && ui_result == ui_val) passed_cases++;
+        test_cases++;
+
+        // Test long
+        long l_val = 42L;
+        long l_result;
+        if (get(env, make(env, l_val), l_result) && l_result == l_val) passed_cases++;
+        test_cases++;
+
+        // Test range checking across types
+        if (get(env, make(env, 50), i_result, 10, 100) && i_result == 50) passed_cases++;
+        test_cases++;
+
+        if (get(env, make(env, 50u), ui_result, 10u, 100u) && ui_result == 50u) passed_cases++;
+        test_cases++;
+
+        return make(env, std::make_tuple(test_cases, passed_cases));
+    }
+    // Test container consolidation functionality
+    else if(cmd=="container_consolidation_test")
+    {
+        int test_cases = 0;
+        int passed_cases = 0;
+
+        // Test vector consolidation
+        std::vector<int> vec_in = {1, 2, 3, 4, 5};
+        TERM vec_term = make(env, vec_in);
+        std::vector<int> vec_out;
+        if (get(env, vec_term, vec_out) && vec_out == vec_in) passed_cases++;
+        test_cases++;
+
+        // Test list consolidation
+        std::list<int> list_in = {10, 20, 30};
+        TERM list_term = make(env, list_in);
+        std::list<int> list_out;
+        if (get(env, list_term, list_out) &&
+            std::equal(list_in.begin(), list_in.end(), list_out.begin())) passed_cases++;
+        test_cases++;
+
+        // Test deque consolidation
+        std::deque<int> deque_in = {100, 200, 300, 400};
+        TERM deque_term = make(env, deque_in);
+        std::deque<int> deque_out;
+        if (get(env, deque_term, deque_out) &&
+            std::equal(deque_in.begin(), deque_in.end(), deque_out.begin())) passed_cases++;
+        test_cases++;
+
+        // Test set consolidation
+        std::set<int> set_in = {5, 1, 3, 2, 4};
+        TERM set_term = make(env, set_in);
+        std::set<int> set_out;
+        if (get(env, set_term, set_out) && set_out == set_in) passed_cases++;
+        test_cases++;
+
+        // Test unordered_set consolidation (special case with forward iterators)
+        std::unordered_set<int> uset_in = {10, 30, 20};
+        TERM uset_term = make(env, uset_in);
+        std::unordered_set<int> uset_out;
+        if (get(env, uset_term, uset_out) && uset_out == uset_in) passed_cases++;
+        test_cases++;
+
+        return make(env, std::make_tuple(test_cases, passed_cases));
+    }
+    else if(cmd=="process_monitoring_test")
+    {
+        int test_cases = 0;
+        int passed_cases = 0;
+
+        // Test self() function - this one adds value by returning PID directly
+        ErlNifPid current_pid = self(env);
+        test_cases++;
+        if (current_pid.pid != 0) passed_cases++;
+
+        return make(env, std::make_tuple(test_cases, passed_cases));
+    }
+    else if(cmd=="type_checking_test")
+    {
+        int test_cases = 0;
+        int passed_cases = 0;
+
+        // Test is_atom
+        TERM atom_term = make(env, str_atom("test_atom"));
+        test_cases++;
+        if (is_atom(env, atom_term)) passed_cases++;
+
+        // Test is_binary
+        std::string test_str = "hello";
+        TERM binary_term = make(env, test_str);
+        test_cases++;
+        if (is_binary(env, binary_term)) passed_cases++;
+
+        // Test is_list
+        std::vector<int> test_list = {1, 2, 3};
+        TERM list_term = make(env, test_list);
+        test_cases++;
+        if (is_list(env, list_term)) passed_cases++;
+
+        // Test is_empty_list
+        TERM empty_list = make(env, std::vector<int>());
+        test_cases++;
+        if (is_empty_list(env, empty_list)) passed_cases++;
+
+        // Test is_tuple
+        TERM tuple_term = make(env, std::make_tuple(1, 2, 3));
+        test_cases++;
+        if (is_tuple(env, tuple_term)) passed_cases++;
+
+        // Test is_number (integer)
+        TERM int_term = make(env, 42);
+        test_cases++;
+        if (is_number(env, int_term)) passed_cases++;
+
+        // Test is_number (double)
+        TERM double_term = make(env, 3.14);
+        test_cases++;
+        if (is_number(env, double_term)) passed_cases++;
+
+        // Test is_pid (current process)
+        ErlNifPid current_pid = self(env);
+        TERM pid_term = make(env, current_pid);
+        test_cases++;
+        if (is_pid(env, pid_term)) passed_cases++;
+
+        // Test is_identical
+        TERM term1 = make(env, 100);
+        test_cases++;
+        if (is_identical(term1, term1)) passed_cases++; // Same object
+
+        // Test negative cases
+        test_cases++;
+        if (!is_atom(env, binary_term)) passed_cases++; // binary is not atom
+
+        test_cases++;
+        if (!is_list(env, atom_term)) passed_cases++; // atom is not list
+
+        return make(env, std::make_tuple(test_cases, passed_cases));
+    }
+    else if(cmd=="custom_atoms_test")
+    {
+        int test_cases = 0;
+        int passed_cases = 0;
+
+        // Test that custom atoms are properly initialized
+        test_cases++;
+        if (am_test_atom.initialized()) passed_cases++;
+
+        test_cases++;
+        if (am_custom_success.initialized()) passed_cases++;
+
+        test_cases++;
+        if (am_my_special_atom.initialized()) passed_cases++;
+
+        // Test that we can create terms from them
+        TERM test_term = make(env, am_test_atom);
+        test_cases++;
+        if (is_atom(env, test_term)) passed_cases++;
+
+        // Test that we can compare them
+        test_cases++;
+        if (am_test_atom == am_test_atom) passed_cases++;
+
+        test_cases++;
+        if (!(am_test_atom == am_custom_success)) passed_cases++;
+
+        // Test string representation
+        std::string atom_str = am_test_atom.to_string(env);
+        test_cases++;
+        if (atom_str == "test_atom") passed_cases++;
+
+        return make(env, std::make_tuple(test_cases, passed_cases));
     }
 
 

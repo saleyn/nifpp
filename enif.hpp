@@ -37,6 +37,7 @@
 #include <tuple>
 #include <array>
 #include <vector>
+#include <type_traits>
 #include <list>
 #include <deque>
 #include <set>
@@ -57,8 +58,8 @@ namespace nifpp
 
 // Library version
 
-static constexpr const int NIFPP_MAJOR_VSN = 2;
-static constexpr const int NIFPP_MINOR_VSN = 3;
+static constexpr const int NIFPP_MAJOR_VSN = 3;
+static constexpr const int NIFPP_MINOR_VSN = 0;
 
 struct TERM
 {
@@ -142,6 +143,49 @@ private:
     ERL_NIF_TERM val;
 };
 
+// User-defined atoms registry
+namespace detail {
+    struct atom_registration {
+        atom* atom_ptr;
+        const char* atom_name;
+        atom_registration* next;
+    };
+
+    static atom_registration* atom_registry = nullptr;
+
+    inline void register_atom(atom* atom_ptr, const char* name) {
+        static atom_registration* registry_tail = nullptr;
+
+        auto* reg = new atom_registration;
+        reg->atom_ptr = atom_ptr;
+        reg->atom_name = name;
+        reg->next = nullptr;
+
+        if (!atom_registry) {
+            atom_registry = registry_tail = reg;
+        } else {
+            registry_tail->next = reg;
+            registry_tail = reg;
+        }
+    }
+}
+
+/// Macro to add a known atom that will be initialized by initialize_known_atoms()
+///
+/// Usage: NIFPP_ADD_KNOWN_ATOM(am_my_custom_atom) creates am_my_custom_atom
+/// The atom name will be "my_custom_atom" in Erlang (am_ prefix is stripped)
+#define NIFPP_ADD_KNOWN_ATOM(am_atom_name) \
+    namespace nifpp { static atom am_atom_name; } \
+    namespace { \
+        struct atom_init_##am_atom_name { \
+            atom_init_##am_atom_name() { \
+                ::nifpp::detail::register_atom(&::nifpp::am_atom_name, #am_atom_name + 3); \
+            } \
+        }; \
+        static atom_init_##am_atom_name atom_init_instance_##am_atom_name; \
+    }
+
+// Built-in known atoms - explicitly declared for better clarity
 static atom am_true;
 static atom am_false;
 static atom am_ok;
@@ -155,12 +199,18 @@ static atom am_nil;
 /// library.
 inline void initialize_known_atoms(ErlNifEnv* env)
 {
+    // Initialize built-in known atoms
     am_true      = atom(env, "true");
     am_false     = atom(env, "false");
     am_ok        = atom(env, "ok");
     am_error     = atom(env, "error");
     am_undefined = atom(env, "undefined");
     am_nil       = atom(env, "nil");
+
+    // Initialize user-registered atoms
+    for (auto* reg = detail::atom_registry; reg != nullptr; reg = reg->next) {
+        *(reg->atom_ptr) = atom(env, reg->atom_name);
+    }
 }
 
 } //namespace nifpp
@@ -300,28 +350,12 @@ inline binary_string operator ""_s(const char* s, size_t sz) { return std::strin
 template<typename ...Ts> bool get(ErlNifEnv* env, ERL_NIF_TERM term, std::tuple<Ts...>& var);
 template<typename ...Ts> TERM make(ErlNifEnv* env, const std::tuple<Ts...>& var);
 
-template<typename T> bool get(ErlNifEnv* env, ERL_NIF_TERM term, std::vector<T>& var);
-template<typename T> TERM make(ErlNifEnv* env, const std::vector<T>& var);
+// Container get() and make() functions are now handled by the unified templates below
+// Keep specialized versions that need forward declarations:
 TERM make(ErlNifEnv* env, const std::vector<TERM>& var);
-
 template<typename T, size_t N> bool get(ErlNifEnv* env, ERL_NIF_TERM term, std::array<T, N>& var);
 template<typename T, size_t N> TERM make(ErlNifEnv* env, const std::array<T, N>& var);
 template<size_t N>TERM make(ErlNifEnv* env, const std::array<TERM, N>& var);
-
-template<typename T> bool get(ErlNifEnv* env, ERL_NIF_TERM term, std::list<T>& var);
-template<typename T> TERM make(ErlNifEnv* env, const std::list<T>& var);
-
-template<typename T> bool get(ErlNifEnv* env, ERL_NIF_TERM term, std::deque<T>& var);
-template<typename T> TERM make(ErlNifEnv* env, const std::deque<T>& var);
-
-template<typename T> bool get(ErlNifEnv* env, ERL_NIF_TERM term, std::set<T>& var);
-template<typename T> TERM make(ErlNifEnv* env, const std::set<T>& var);
-
-template<typename T> bool get(ErlNifEnv* env, ERL_NIF_TERM term, std::unordered_set<T>& var);
-template<typename T> TERM make(ErlNifEnv* env, const std::unordered_set<T>& var);
-
-template<typename T> bool get(ErlNifEnv* env, ERL_NIF_TERM term, std::multiset<T>& var);
-template<typename T> TERM make(ErlNifEnv* env, const std::multiset<T>& var);
 
 #if NIFPP_HAS_MAPS
 //template<typename TK, typename TV> bool add_to_map(ErlNifEnv* env, TERM &map, const std::pair<TK,TV>& var);
@@ -455,86 +489,216 @@ inline TERM make(ErlNifEnv* env, const double var)
     return TERM(enif_make_double(env, var));
 }
 
-inline bool get(ErlNifEnv* env, ERL_NIF_TERM term, int& var)
-{
-    return enif_get_int(env, term, &var);
-}
-inline bool get(ErlNifEnv* env, ERL_NIF_TERM term, int& var, int min, int max)
-{
-    return enif_get_int(env, term, &var) && var >= min && var <= max;
-}
-inline TERM make(ErlNifEnv* env, const int var)
-{
-    return TERM(enif_make_int(env, var));
-}
+//------------------------------------------------------------------------------
+// Template-based integer handling - consolidates repetitive code
+//------------------------------------------------------------------------------
 
+namespace detail {
 
-inline bool get(ErlNifEnv* env, ERL_NIF_TERM term, unsigned int& var)
-{
-    return enif_get_uint(env, term, &var);
-}
-inline bool get(ErlNifEnv* env, ERL_NIF_TERM term, unsigned int& var, unsigned int min, unsigned int max)
-{
-    return enif_get_uint(env, term, &var) && var >= min && var <= max;
-}
-inline TERM make(ErlNifEnv* env, const unsigned int var)
-{
-    return TERM(enif_make_uint(env, var));
-}
+// Template traits for mapping C++ integer types to NIF functions
+template<typename T> struct integer_nif_traits;
+
+// Macro to define traits for each integer type (reduces boilerplate)
+#define NIFPP_DEFINE_INTEGER_TRAITS(CppType, GetFunc, MakeFunc) \
+    template<> struct integer_nif_traits<CppType> { \
+        static constexpr bool is_supported = true; \
+        static bool get_value(ErlNifEnv* env, ERL_NIF_TERM term, CppType* var) { \
+            return GetFunc(env, term, var); \
+        } \
+        static ERL_NIF_TERM make_value(ErlNifEnv* env, CppType var) { \
+            return MakeFunc(env, var); \
+        } \
+    };
+
+// Define traits for all supported integer types
+NIFPP_DEFINE_INTEGER_TRAITS(int,           enif_get_int,    enif_make_int)
+NIFPP_DEFINE_INTEGER_TRAITS(unsigned int,  enif_get_uint,   enif_make_uint)
+NIFPP_DEFINE_INTEGER_TRAITS(long,          enif_get_long,   enif_make_long)
+NIFPP_DEFINE_INTEGER_TRAITS(unsigned long, enif_get_ulong,  enif_make_ulong)
 
 #if SIZEOF_LONG != 8
-inline bool get(ErlNifEnv* env, ERL_NIF_TERM term, ErlNifSInt64& var)
-{
-    return enif_get_int64(env, term, &var);
-}
-inline bool get(ErlNifEnv* env, ERL_NIF_TERM term, ErlNifSInt64& var, ErlNifSInt64 min, ErlNifSInt64 max)
-{
-    return enif_get_int64(env, term, &var) && var >= min && var <= max;
-}
-inline TERM make(ErlNifEnv* env, const ErlNifSInt64 var)
-{
-    return TERM(enif_make_int64(env, var));
-}
-
-inline bool get(ErlNifEnv* env, ERL_NIF_TERM term, ErlNifUInt64& var)
-{
-    return enif_get_uint64(env, term, &var);
-}
-inline bool get(ErlNifEnv* env, ERL_NIF_TERM term, ErlNifUInt64& var, ErlNifUInt64 min, ErlNifUInt64 max)
-{
-    return enif_get_uint64(env, term, &var) && var >= min && var <= max;
-}
-inline TERM make(ErlNifEnv* env, const ErlNifUInt64 var)
-{
-    return TERM(enif_make_uint64(env, var));
-}
+NIFPP_DEFINE_INTEGER_TRAITS(ErlNifSInt64,  enif_get_int64,  enif_make_int64)
+NIFPP_DEFINE_INTEGER_TRAITS(ErlNifUInt64,  enif_get_uint64, enif_make_uint64)
 #endif
 
+#undef NIFPP_DEFINE_INTEGER_TRAITS
 
-inline bool get(ErlNifEnv* env, ERL_NIF_TERM term, long& var)
+// SFINAE helper for template constraints
+template<typename T, typename = void>
+struct is_nif_integer : std::false_type {};
+
+template<typename T>
+struct is_nif_integer<T, typename std::enable_if<integer_nif_traits<T>::is_supported>::type> : std::true_type {};
+
+// Container traits for template-based consolidation
+template<typename T> struct container_traits {
+    // Default traits for unsupported containers
+    static constexpr bool is_sequential         = false;
+    static constexpr bool is_set_like           = false;
+    static constexpr bool has_reverse_iterators = false;
+    static constexpr bool is_fixed_size         = false;
+};
+
+// Sequential container traits (vector, list, deque)
+#define NIFPP_DEFINE_SEQUENTIAL_CONTAINER_TRAITS(ContainerType) \
+    template<typename T> struct container_traits<ContainerType<T>> { \
+        using value_type = T; \
+        static constexpr bool is_supported          = true; \
+        static constexpr bool is_sequential         = true; \
+        static constexpr bool is_set_like           = false; \
+        static constexpr bool has_reverse_iterators = true; \
+        static constexpr bool is_fixed_size         = false; \
+        static void insert_item(ContainerType<T>& container, const T& item) { \
+            container.push_back(item); \
+        } \
+    };
+
+NIFPP_DEFINE_SEQUENTIAL_CONTAINER_TRAITS(std::vector)
+NIFPP_DEFINE_SEQUENTIAL_CONTAINER_TRAITS(std::list)
+NIFPP_DEFINE_SEQUENTIAL_CONTAINER_TRAITS(std::deque)
+
+#undef NIFPP_DEFINE_SEQUENTIAL_CONTAINER_TRAITS
+
+// Set-like container traits (set, unordered_set, multiset)
+#define NIFPP_DEFINE_SET_CONTAINER_TRAITS(ContainerType) \
+    template<typename T> struct container_traits<ContainerType<T>> { \
+        using value_type = T; \
+        static constexpr bool is_sequential         = false; \
+        static constexpr bool is_set_like           = true;  \
+        static constexpr bool has_reverse_iterators = true;  \
+        static void insert_item(ContainerType<T>& container, const T& item) { \
+            container.insert(item); \
+        } \
+    };
+
+NIFPP_DEFINE_SET_CONTAINER_TRAITS(std::set)
+NIFPP_DEFINE_SET_CONTAINER_TRAITS(std::multiset)
+
+// Special case for unordered_set - uses forward iterators
+template<typename T> struct container_traits<std::unordered_set<T>> {
+    using value_type = T;
+    static constexpr bool is_sequential         = false;
+    static constexpr bool is_set_like           = true;
+    static constexpr bool has_reverse_iterators = false; // Special case!
+    static void insert_item(std::unordered_set<T>& container, const T& item) {
+        container.insert(item);
+    }
+};
+
+#undef NIFPP_DEFINE_SET_CONTAINER_TRAITS
+
+// Array container traits (special case - fixed size)
+template<typename T, size_t N> struct container_traits<std::array<T, N>> {
+    using value_type = T;
+    static constexpr bool is_sequential         = true;
+    static constexpr bool is_set_like           = false;
+    static constexpr bool has_reverse_iterators = true;
+    static constexpr bool is_fixed_size         = true;
+};
+
+// SFINAE helpers for container classification
+template<typename T, typename = void>
+struct is_consolidatable_container : std::false_type {};
+
+template<typename T>
+struct is_consolidatable_container<T, typename std::enable_if<
+    container_traits<T>::is_sequential || container_traits<T>::is_set_like
+>::type> : std::true_type {};
+
+template<typename T, typename = void>
+struct has_reverse_iterators : std::false_type {};
+
+template<typename T>
+struct has_reverse_iterators<T, typename std::enable_if<
+    container_traits<T>::has_reverse_iterators
+>::type> : std::true_type {};
+
+} // namespace detail
+
+// Unified template functions that replace ALL the repetitive integer code
+
+// Basic get() function - works for all integer types
+template<typename T>
+inline typename std::enable_if<detail::is_nif_integer<T>::value, bool>::type
+get(ErlNifEnv* env, ERL_NIF_TERM term, T& var)
 {
-    return enif_get_long(env, term, &var);
-}
-inline bool get(ErlNifEnv* env, ERL_NIF_TERM term, long& var, long min, long max)
-{
-    return enif_get_long(env, term, &var) && var >= min && var <= max;
-}
-inline TERM make(ErlNifEnv* env, const long var)
-{
-    return TERM(enif_make_long(env, var));
+    return detail::integer_nif_traits<T>::get_value(env, term, &var);
 }
 
-inline bool get(ErlNifEnv* env, ERL_NIF_TERM term, unsigned long& var)
+// Range-checking get() function - works for all integer types
+template<typename T>
+inline typename std::enable_if<detail::is_nif_integer<T>::value, bool>::type
+get(ErlNifEnv* env, ERL_NIF_TERM term, T& var, T min, T max)
 {
-    return enif_get_ulong(env, term, &var);
+    return detail::integer_nif_traits<T>::get_value(env, term, &var) &&
+           var >= min && var <= max;
 }
-inline bool get(ErlNifEnv* env, ERL_NIF_TERM term, unsigned long& var, unsigned long min, unsigned long max)
+
+// make() function - works for all integer types
+template<typename T>
+inline typename std::enable_if<detail::is_nif_integer<T>::value, TERM>::type
+make(ErlNifEnv* env, const T var)
 {
-    return enif_get_ulong(env, term, &var) && var >= min && var <= max;
+    return TERM(detail::integer_nif_traits<T>::make_value(env, var));
 }
-inline TERM make(ErlNifEnv* env, const unsigned long var)
+
+//------------------------------------------------------------------------------
+// Template-based container handling - consolidates repetitive container code
+//------------------------------------------------------------------------------
+
+// Unified get() function for sequential containers (vector, list, deque)
+template<typename Container>
+inline typename std::enable_if<
+    detail::container_traits<Container>::is_sequential &&
+    !detail::container_traits<Container>::is_fixed_size, bool
+>::type get(ErlNifEnv* env, ERL_NIF_TERM term, Container& var)
 {
-    return TERM(enif_make_ulong(env, var));
+    var.clear();
+    using value_type = typename detail::container_traits<Container>::value_type;
+    return list_for_each<value_type>(env, term, [&var](value_type item) {
+        detail::container_traits<Container>::insert_item(var, item);
+    });
+}
+
+// Unified get() function for set-like containers (set, unordered_set, multiset)
+template<typename Container>
+inline typename std::enable_if<
+    detail::container_traits<Container>::is_set_like, bool
+>::type get(ErlNifEnv* env, ERL_NIF_TERM term, Container& var)
+{
+    var.clear();
+    using value_type = typename detail::container_traits<Container>::value_type;
+    return list_for_each<value_type>(env, term, [&var](value_type item) {
+        detail::container_traits<Container>::insert_item(var, item);
+    });
+}
+
+// Unified make() function for all containers with reverse iterators
+template<typename Container>
+inline typename std::enable_if<
+    detail::is_consolidatable_container<Container>::value &&
+    detail::has_reverse_iterators<Container>::value, TERM
+>::type make(ErlNifEnv* env, const Container& var)
+{
+    ERL_NIF_TERM tail = enif_make_list(env, 0);
+    for(auto i = var.rbegin(); i != var.rend(); ++i) {
+        tail = enif_make_list_cell(env, make(env, *i), tail);
+    }
+    return TERM(tail);
+}
+
+// Special make() function for containers that only have forward iterators (like unordered_set)
+template<typename Container>
+inline typename std::enable_if<
+    detail::is_consolidatable_container<Container>::value &&
+    !detail::has_reverse_iterators<Container>::value, TERM
+>::type make(ErlNifEnv* env, const Container& var)
+{
+    ERL_NIF_TERM tail = enif_make_list(env, 0);
+    for(auto i = var.begin(); i != var.end(); ++i) {
+        tail = enif_make_list_cell(env, make(env, *i), tail);
+    }
+    return TERM(tail);
 }
 
 
@@ -569,7 +733,6 @@ inline TERM make(ErlNifEnv* env, const ErlNifPid &var)
     return TERM(enif_make_pid(env, &var));
     #pragma GCC diagnostic pop
 }
-
 
 
 //
@@ -669,36 +832,16 @@ public:
         return *this;
     }
 
-    void reset() { this_type().swap(*this); }
-
+    void reset()       { this_type().swap(*this);    }
     void reset(T* rhs) { this_type(rhs).swap(*this); }
 
     T const* get() const { return px; }
     T*       get()       { return px; }
 
-    T& operator*()
-    {
-        assert(px != 0);
-        return *px;
-    }
-
-    const T& operator*() const
-    {
-        assert(px != 0);
-        return *px;
-    }
-
-    T* operator->() const
-    {
-        assert(px != 0);
-        return px;
-    }
-
-    T* operator&() const
-    {
-        assert(px != 0);
-        return px;
-    }
+    T&       operator*()        { assert(px != 0); return *px; }
+    const T& operator*()  const { assert(px != 0); return *px; }
+    T*       operator->() const { assert(px != 0); return  px; }
+    T*       operator&()  const { assert(px != 0); return  px; }
 
     operator bool () const { return px != 0; }
 
@@ -710,7 +853,6 @@ public:
     }
 
 private:
-
     T* px;
 };
 
@@ -1000,6 +1142,53 @@ inline int select_stop(ErlNifEnv* env, ErlNifEvent event, T* obj)
 {
     return enif_select(env, event, ERL_NIF_SELECT_STOP, (void*)obj, nullptr, ERL_NIF_TERM(0));
 }
+
+
+
+//------------------------------------------------------------------------------
+// Type checking functions
+//------------------------------------------------------------------------------
+
+// Check if term is an atom
+inline bool is_atom(ErlNifEnv* env, TERM term) { return enif_is_atom(env, term) != 0; }
+
+// Check if term is a binary
+inline bool is_binary(ErlNifEnv* env, TERM term) { return enif_is_binary(env, term) != 0; }
+
+// Check if term is a reference
+inline bool is_ref(ErlNifEnv* env, TERM term) { return enif_is_ref(env, term) != 0; }
+
+// Check if term is a function
+inline bool is_fun(ErlNifEnv* env, TERM term) { return enif_is_fun(env, term) != 0; }
+
+// Check if term is a PID
+inline bool is_pid(ErlNifEnv* env, TERM term) { return enif_is_pid(env, term) != 0; }
+
+// Check if term is a port
+inline bool is_port(ErlNifEnv* env, TERM term) { return enif_is_port(env, term) != 0; }
+
+// Check if term is an empty list
+inline bool is_empty_list(ErlNifEnv* env, TERM term) { return enif_is_empty_list(env, term) != 0; }
+
+// Check if term is a list
+inline bool is_list(ErlNifEnv* env, TERM term) { return enif_is_list(env, term) != 0; }
+
+// Check if term is a tuple
+inline bool is_tuple(ErlNifEnv* env, TERM term) { return enif_is_tuple(env, term) != 0; }
+
+// Check if term is a number (integer or float)
+inline bool is_number(ErlNifEnv* env, TERM term) { return enif_is_number(env, term) != 0; }
+
+// Check if term is a map
+inline bool is_map(ErlNifEnv* env, TERM term) { return enif_is_map(env, term) != 0; }
+
+// Check if term is an exception
+inline bool is_exception(ErlNifEnv* env, TERM term) { return enif_is_exception(env, term) != 0; }
+
+// Check if two terms are identical (same object)
+inline bool is_identical(TERM lhs, TERM rhs) { return enif_is_identical(lhs, rhs) != 0; }
+
+
 
 //------------------------------------------------------------------------------
 // get/make functions
@@ -1295,26 +1484,7 @@ bool list_for_each(ErlNifEnv* env, ERL_NIF_TERM term, const F& f)
     return true;
 }
 
-template<typename T>
-bool get(ErlNifEnv* env, ERL_NIF_TERM term, std::vector<T>& var)
-{
-    unsigned len;
-    auto ret = enif_get_list_length(env, term, &len);
-    if (!ret) [[unlikely]] return false;
-    var.clear();
-    return list_for_each<T>(env, term, [&var](T item){var.push_back(item);});
-}
-template<typename T>
-TERM make(ErlNifEnv* env, const std::vector<T>& var)
-{
-    ERL_NIF_TERM tail;
-    tail = enif_make_list(env, 0);
-    for(auto i=var.rbegin(); i!=var.rend(); i++)
-    {
-        tail = enif_make_list_cell(env, make(env,*i), tail);
-    }
-    return TERM(tail);
-}
+// vector<T> get() and make() are now handled by the unified template functions above
 inline TERM make(ErlNifEnv* env, const std::vector<TERM>& var)
 {
     return TERM(enif_make_list_from_array(env, (ERL_NIF_TERM*)&var[0], var.size()));
@@ -1352,60 +1522,9 @@ TERM make(ErlNifEnv* env, const std::array<TERM, N>& var)
 }
 
 
-template<typename T>
-bool get(ErlNifEnv* env, ERL_NIF_TERM term, std::list<T>& var)
-{
-    var.clear();
-    return list_for_each<T>(env, term, [&var](T item){var.push_back(item);});
-}
-template<typename T>
-TERM make(ErlNifEnv* env, const std::list<T>& var)
-{
-    ERL_NIF_TERM tail;
-    tail = enif_make_list(env, 0);
-    for(auto i=var.rbegin(); i!=var.rend(); i++)
-    {
-        tail = enif_make_list_cell(env, make(env,*i), tail);
-    }
-    return TERM(tail);
-}
-
-
-template<typename T>
-bool get(ErlNifEnv* env, ERL_NIF_TERM term, std::deque<T>& var)
-{
-    var.clear();
-    return list_for_each<T>(env, term, [&var](T item){var.push_back(item);});
-}
-template<typename T>
-TERM make(ErlNifEnv* env, const std::deque<T>& var)
-{
-    ERL_NIF_TERM tail;
-    tail = enif_make_list(env, 0);
-    for(auto i=var.rbegin(); i!=var.rend(); i++)
-    {
-        tail = enif_make_list_cell(env, make(env,*i), tail);
-    }
-    return TERM(tail);
-}
-
-template<typename T>
-bool get(ErlNifEnv* env, ERL_NIF_TERM term, std::set<T>& var)
-{
-    var.clear();
-    return list_for_each<T>(env, term, [&var](T item){var.insert(item);});
-}
-template<typename T>
-TERM make(ErlNifEnv* env, const std::set<T>& var)
-{
-    ERL_NIF_TERM tail;
-    tail = enif_make_list(env, 0);
-    for(auto i=var.rbegin(); i!=var.rend(); i++)
-    {
-        tail = enif_make_list_cell(env, make(env,*i), tail);
-    }
-    return TERM(tail);
-}
+// list<T>  get() and make() are now handled by the unified template functions above
+// deque<T> get() and make() are now handled by the unified template functions above
+// set<T>   get() and make() are now handled by the unified template functions above
 
 template<typename T>
 bool get(ErlNifEnv* env, ERL_NIF_TERM term, std::unordered_set<T>& var)
