@@ -175,11 +175,11 @@ namespace detail {
 /// Usage: NIFPP_ADD_KNOWN_ATOM(am_my_custom_atom) creates am_my_custom_atom
 /// The atom name will be "my_custom_atom" in Erlang (am_ prefix is stripped)
 #define NIFPP_ADD_KNOWN_ATOM(am_atom_name) \
-    namespace nifpp { static atom am_atom_name; } \
+    static ::nifpp::atom am_atom_name; \
     namespace { \
         struct atom_init_##am_atom_name { \
             atom_init_##am_atom_name() { \
-                ::nifpp::detail::register_atom(&::nifpp::am_atom_name, #am_atom_name + 3); \
+                ::nifpp::detail::register_atom(&am_atom_name, #am_atom_name + 3); \
             } \
         }; \
         static atom_init_##am_atom_name atom_init_instance_##am_atom_name; \

@@ -12,14 +12,14 @@ using std::ref;
 #define NIFPP_INTRUSIVE_UNIT_TEST
 #include "enif.hpp"
 
+using namespace nifpp;
+
 // Test custom known atoms
 NIFPP_ADD_KNOWN_ATOM(am_test_atom)
 NIFPP_ADD_KNOWN_ATOM(am_custom_success)
 NIFPP_ADD_KNOWN_ATOM(am_my_special_atom)
 
 extern nifpp::resource_ptr<int> get_resource_int(int val);
-
-using namespace nifpp;
 
 // list test abstracted over container type and contained element type
 template<typename T> // supported container type
