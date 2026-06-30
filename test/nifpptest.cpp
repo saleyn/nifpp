@@ -615,6 +615,10 @@ ERL_NIF_TERM nif_main(ErlNifEnv* env, nifpp::TERM term)
 
         int result;
         bool success = get(env, make(env, value), result, min, max);
+
+        uint32_t umin = uint32_t(min), umax = uint32_t(max);
+        success &= get(env, make(env, value), result, umin, umax);
+
         return make(env, std::make_tuple(success, result));
     }
     // Test new range-checking get() functions for unsigned int

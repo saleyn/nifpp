@@ -629,20 +629,23 @@ get(ErlNifEnv* env, ERL_NIF_TERM term, T& var)
 }
 
 // Range-checking get() function - works for all integer types
-template<typename T>
-inline typename std::enable_if<detail::is_nif_integer<T>::value, bool>::type
-get(ErlNifEnv* env, ERL_NIF_TERM term, T& var, T min, T max)
+template<typename T, typename I = T>
+inline typename std::enable_if<detail::is_nif_integer<T>::value &&
+                               detail::is_nif_integer<I>::value, bool>::type
+get(ErlNifEnv* env, ERL_NIF_TERM term, T& var, I min, I max)
 {
     return detail::integer_nif_traits<T>::get_value(env, term, &var) &&
-           var >= min && var <= max;
+           var >= T(min) && var <= T(max);
 }
 
 // Range-checking get() function - works for all integer types
-template<typename T>
-inline typename std::enable_if<detail::is_nif_integer<T>::value && std::is_unsigned<T>::value, bool>::type
-get(ErlNifEnv* env, ERL_NIF_TERM term, T& var, T max)
+template<typename T, typename I = T>
+inline typename std::enable_if<detail::is_nif_integer<T>::value &&
+                               detail::is_nif_integer<I>::value &&
+                               std::is_unsigned<T>::value, bool>::type
+get(ErlNifEnv* env, ERL_NIF_TERM term, T& var, I max)
 {
-    return detail::integer_nif_traits<T>::get_value(env, term, &var) && var <= max;
+    return detail::integer_nif_traits<T>::get_value(env, term, &var) && var <= T(max);
 }
 
 // make() function - works for all integer types
