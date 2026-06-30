@@ -439,8 +439,10 @@ ERL_NIF_TERM nif_main(ErlNifEnv* env, nifpp::TERM term)
     {
         ErlNifBinary ebin;
         get_throws(env, cmddata, ebin);
-        binary newbin(ebin.size*2);
+        binary newbin(ebin.size);
         std::memcpy(newbin.data,           ebin.data, ebin.size);
+        if (!newbin.realloc(ebin.size*2))
+            return make(env, str_atom("failed_to_realloc"));
         std::memcpy(newbin.data+ebin.size, ebin.data, ebin.size);
 
         // make sure these give compile errors:

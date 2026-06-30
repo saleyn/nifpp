@@ -281,6 +281,9 @@ struct binary: public ErlNifBinary
     bool ok() const { return allocated; }
     explicit operator bool() const { return allocated; }
 
+    // Reallocate binary size
+    bool realloc(size_t _size) { return enif_realloc_binary(this, _size) != 0; }
+
     friend TERM make(ErlNifEnv* env, binary& var); // make can set owns_data to false
 
 protected:
