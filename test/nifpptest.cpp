@@ -165,6 +165,12 @@ ERL_NIF_TERM nif_main(ErlNifEnv* env, nifpp::TERM term)
         out += in;
         return make_binary(env,out);
     }
+    else if(cmd=="binary3")
+    {
+        uint32_t n;
+        get_throws(env, cmddata, n);
+        return make(env, binary(n));
+    }
     else if(cmd=="string2")
     {
         std::string in;

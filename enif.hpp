@@ -251,6 +251,7 @@ namespace nifpp
 
 struct binary;
 TERM make(ErlNifEnv* env, binary& var);
+TERM make(ErlNifEnv* env, const binary& var);
 
 struct binary: public ErlNifBinary
 {
@@ -285,9 +286,10 @@ struct binary: public ErlNifBinary
     bool realloc(size_t _size) { return enif_realloc_binary(this, _size) != 0; }
 
     friend TERM make(ErlNifEnv* env, binary& var); // make can set owns_data to false
+    friend TERM make(ErlNifEnv* env, const binary& var);
 
 protected:
-    bool needs_release;
+    mutable bool needs_release;
 
 private:
     bool allocated;
@@ -726,12 +728,17 @@ inline TERM make(ErlNifEnv* env, ErlNifBinary &var)
 {
     return TERM(enif_make_binary(env, &var));
 }
-inline TERM make(ErlNifEnv* env, binary &var)
+inline TERM make(ErlNifEnv* env, binary& var)
 {
     var.needs_release = false;
     return TERM(enif_make_binary(env, &var));
 }
 
+inline TERM make(ErlNifEnv* env, const binary& var)
+{
+    var.needs_release = false;
+    return TERM(enif_make_binary(env, const_cast<binary*>(&var)));
+}
 
 // ErlNifPid
 
