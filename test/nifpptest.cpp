@@ -177,6 +177,12 @@ ERL_NIF_TERM nif_main(ErlNifEnv* env, nifpp::TERM term)
         get_throws(env, cmddata, n);
         return make_tuple(env, am_ok, binary{n});
     }
+    else if(cmd=="binary5")
+    {
+        binary bin{3};
+        std::memcpy(bin.data, "abc", 3);
+        return make_tuple(env, am_ok, std::move(bin));
+    }
     else if(cmd=="string2")
     {
         std::string in;

@@ -524,7 +524,7 @@ if (nifpp::atom(env, "abc") == a)
 
 ### Binaries
 
-ErlNifBinary is directly supported by get()/make(), for Example:
+ErlNifBinary is directly supported by get()/make(), for example:
 
 ```c++
 // inspect binary
@@ -541,18 +541,128 @@ nifpp::TERM term = nifpp::make(env, ebin);
 
 The type `nifpp::binary` is also supplied to assist in safe creation of
 binaries.  `nifpp::binary` is derived from ErlNifBinary and will automatically
-release the allocated memory if it was never made into a term.  For example:
+release the allocated memory if it was never made into a term.
+
+**nifpp::binary constructors:**
 
 ```c++
-// create binary using "binary" type
+// 1. Allocate empty binary of specified size
+nifpp::binary nbin(2000);
+// ... copy data into nbin.data ...
+
+// 2. Create from C string literal
+nifpp::binary nbin("Hello World");
+
+// 3. Create from std::string
+std::string data = "Hello World";
+nifpp::binary nbin(data);
+
+// 4. Create from std::string_view
+std::string_view data = "Hello World";
+nifpp::binary nbin(data);
+```
+
+**Safe usage example:**
+
+```c++
+// create binary using "binary" type with string constructor
 try
 {
-    nifpp::binary nbin(2000);
-    ...copy data into nbin, maybe throw...
+    nifpp::binary nbin("Hello World");  // Direct string construction
     ERL_NIF_TERM term = nifpp::make(env, nbin);
 }
 catch(...)
 {} // nbin released here if nifpp::make() was not called on it.
+```
+
+#### Safe Binary Usage with `make_tuple()`
+
+The `nifpp::binary` class manages memory automatically and transfers ownership
+to Erlang terms when `make()` is called. To ensure safe usage with `make_tuple()`,
+follow these patterns:
+
+**✅ Safe Usage:**
+
+```c++
+// 1. Direct usage (recommended for single binaries)
+nifpp::binary bin(1024);
+memcpy(bin.data, "Hello World", 11);
+return make(env, bin);
+
+// 2. Explicit move into tuple (safe)
+nifpp::binary bin("Hello World");
+return make_tuple(env, am_ok, std::move(bin));
+
+// 3. Convert to TERM first (also safe)
+nifpp::binary bin(1024);
+memcpy(bin.data, "Hello World", 11);
+TERM bin_term = make(env, bin);
+return make_tuple(env, am_ok, bin_term);
+```
+
+**❌ Prevented Usage (compile-time error):**
+
+```c++
+nifpp::binary bin(1024);
+memcpy(bin.data, "Hello World", 11);
+return make_tuple(env, am_ok, bin);  // ERROR: use std::move(bin) or convert to TERM
+```
+
+**Why the restriction?** The `binary` class uses move semantics to safely transfer
+ownership to Erlang terms. Passing by reference could lead to double-free issues,
+so the library enforces explicit intent via `std::move()` or explicit TERM conversion.
+
+This design ensures memory safety while providing clear, readable code that makes
+ownership transfer explicit.
+
+#### Important: Single-Use Binary Objects
+
+**⚠️ Warning:** Each `nifpp::binary` object can only be converted to a TERM once.
+Subsequent calls to `make()` will return an empty binary instead of the original data.
+
+```c++
+nifpp::binary bin(100);
+memcpy(bin.data, "Hello World", 11);
+
+TERM term1 = make(env, bin);  // ✅ Returns binary with "Hello World"
+TERM term2 = make(env, bin);  // ⚠️  Returns empty binary (size 0)!
+```
+
+**Why this happens:**
+- First `make()` transfers ownership to Erlang and marks the binary as "transferred"
+- Subsequent `make()` calls detect the transferred state and safely return empty binaries
+- This prevents double-free errors but may cause subtle bugs if unexpected
+
+**Best practices:**
+
+```c++
+// ✅ Good: Use move semantics for single use
+nifpp::binary bin(100);
+// ... fill data ...
+return make_tuple(env, am_ok, std::move(bin));  // Clear single-use intent
+
+// ✅ Good: Convert once, reuse the TERM
+nifpp::binary bin(100);
+// ... fill data ...
+TERM bin_term = make(env, bin);
+return make_tuple(env, am_ok, bin_term, bin_term);  // Safe to reuse TERM
+
+// ❌ Bad: Multiple make() calls on same binary
+TERM term1 = make(env, bin);  // Gets the data
+TERM term2 = make(env, bin);  // Gets empty binary - likely a bug!
+```
+
+**Checking binary state:**
+```c++
+nifpp::binary bin(100);
+if (bin.ok()) {
+    // Binary has valid data and hasn't been transferred
+    TERM term = make(env, bin);
+}
+if (bin.is_transferred()) {
+    // Binary ownership has been transferred to a TERM
+    // Subsequent make() calls will return empty binaries
+}
 ```
 
 ### Tuples

@@ -255,26 +255,82 @@ TERM make(ErlNifEnv* env, const binary& var);
 
 struct binary: public ErlNifBinary
 {
-    //binary(): needs_release(false) {}
-
     // Allow binary{10} or binary(10) construction.
-    // NOTE: we could've used an initializer_list, but
-    // there's no way to static_assert(list.size() == 1)
+    // NOTE: we could not use an initializer_list since
+    // there's no way to check: static_assert(list.size() == 1)
     template <typename T>
       requires std::integral<T>
-    explicit binary(T _size)
-        : needs_release(enif_alloc_binary(_size, this)), allocated(needs_release)
+    explicit binary(T _size) : allocated(enif_alloc_binary(_size, this))
     {
         assert(_size >= 0);
+        if (!allocated) [[unlikely]] {
+            // Clear the structure on allocation failure
+            ref_bin = data = nullptr;
+            size = 0;
+        }
     }
 
-    binary(binary&& rhs)
-        : ErlNifBinary(rhs)
-        , needs_release(rhs.needs_release)
-        , allocated(rhs.allocated)
+    // Construct from C string
+    explicit binary(const char* str) : allocated(false)
     {
-        rhs.needs_release = false;
-        allocated         = false;
+        if (!str) {
+            ref_bin = data = nullptr;
+            size = 0;
+            return;
+        }
+        size_t len = strlen(str);
+        allocated = enif_alloc_binary(len, this);
+        if (allocated) {
+            memcpy(data, str, len);
+        } else {
+            ref_bin = data = nullptr;
+            size = 0;
+        }
+    }
+
+    // Construct from C string array
+    template <int N>
+    explicit binary(const char (&str)[N]) : allocated(enif_alloc_binary(N-1, this))
+    {
+        // N-1 to exclude null terminator
+        if (allocated)
+            memcpy(data, str, N-1);
+        else {
+            ref_bin = data = nullptr;
+            size = 0;
+        }
+    }
+
+    // Construct from std::string
+    explicit binary(const std::string& str) : allocated(false)
+    {
+        allocated = enif_alloc_binary(str.size(), this);
+        if (allocated) {
+            memcpy(data, str.data(), str.size());
+        } else {
+            ref_bin = data = nullptr;
+            size = 0;
+        }
+    }
+
+    // Construct from std::string_view
+    explicit binary(std::string_view str) : allocated(false)
+    {
+        allocated = enif_alloc_binary(str.size(), this);
+        if (allocated) {
+            memcpy(data, str.data(), str.size());
+        } else {
+            ref_bin = data = nullptr;
+            size = 0;
+        }
+    }
+
+    binary(binary&& rhs) : ErlNifBinary(rhs), allocated(rhs.allocated)
+    {
+        // Transfer ownership - clear the source to prevent double-free
+        rhs.ref_bin = rhs.data = nullptr;
+        rhs.size = 0;
+        rhs.allocated = false;
     }
 
 #ifdef NIFPP_INTRUSIVE_UNIT_TEST
@@ -282,7 +338,9 @@ struct binary: public ErlNifBinary
 #endif
     ~binary()
     {
-        if (needs_release)
+        // Only release if we allocated it and it hasn't been transferred.
+        // Transfered condition: (allocated && !data)
+        if (allocated && data)
         {
 #ifdef NIFPP_INTRUSIVE_UNIT_TEST
             release_counter++;
@@ -291,30 +349,25 @@ struct binary: public ErlNifBinary
         }
     }
 
-    // Whether the underlying enif_alloc_binary() call (made by the
-    // constructor) actually succeeded -- unlike needs_release (which make()
-    // clears once ownership of the data is transferred to a TERM), this
-    // never changes after construction, so it's the only reliable way to
-    // detect allocation failure (e.g. out of memory) from outside the class.
-    bool ok() const { return allocated; }
-    explicit operator bool() const { return allocated; }
+    // Whether this binary is valid and not transferred
+    bool ok() const { return !!data; }
+    explicit operator bool() const { return ok(); }
 
     // Reallocate binary size
-    bool realloc(size_t _size) { return enif_realloc_binary(this, _size) != 0; }
+    bool realloc(size_t _size) {
+        return enif_realloc_binary(this, _size) != 0;
+    }
 
-    friend TERM make(ErlNifEnv* env, binary& var); // make can set owns_data to false
+    friend TERM make(ErlNifEnv* env, binary& var);
     friend TERM make(ErlNifEnv* env, const binary& var);
 
-protected:
-    mutable bool needs_release;
-
 private:
-    bool allocated;
+    bool allocated;  // Track if enif_alloc_binary succeeded
 
-    // there's no nice way to keep track of owns_data in copies, so just prevent copying
-    binary(const binary&) = delete;
+    // Prevent copying to avoid ownership issues
+    binary(const binary&)            = delete;
     binary& operator=(const binary&) = delete;
-    binary& operator=(binary&&) = delete;
+    binary& operator=(binary&&)      = delete;
 };
 
 #ifdef NIFPP_INTRUSIVE_UNIT_TEST
@@ -748,14 +801,33 @@ inline TERM make(ErlNifEnv* env, ErlNifBinary &var)
 }
 inline TERM make(ErlNifEnv* env, binary& var)
 {
-    var.needs_release = false;
-    return TERM(enif_make_binary(env, &var));
+    if (!var.ok()) [[unlikely]] {
+        // If allocation failed, create an empty binary
+        ERL_NIF_TERM result;
+        enif_make_new_binary(env, 0, &result);
+        return TERM(result);
+    }
+
+    // Transfer ownership to the TERM - clear data pointer to mark as transferred
+    TERM result(enif_make_binary(env, &var));
+    var.data = nullptr;  // Mark as transferred to prevent double-free
+    return result;
 }
 
 inline TERM make(ErlNifEnv* env, const binary& var)
 {
-    var.needs_release = false;
-    return TERM(enif_make_binary(env, const_cast<binary*>(&var)));
+    if (!var.ok()) [[unlikely]] {
+        // If allocation failed, create an empty binary
+        ERL_NIF_TERM result;
+        enif_make_new_binary(env, 0, &result);
+        return TERM(result);
+    }
+
+    // For const binary, we need to be more careful - use const_cast but mark as transferred
+    binary* mutable_var = const_cast<binary*>(&var);
+    TERM result(enif_make_binary(env, mutable_var));
+    mutable_var->data = nullptr;  // Mark as transferred
+    return result;
 }
 
 // ErlNifPid
@@ -1468,11 +1540,64 @@ TERM make(ErlNifEnv* env, const std::tuple<Ts...>& var)
     return TERM(enif_make_tuple_from_array(env, array.begin(), array.size()));
 }
 
+/*
+ * BINARY USAGE WITH make_tuple
+ *
+ * The nifpp::binary class manages memory automatically and transfers ownership
+ * to Erlang terms when make() is called. To avoid ownership issues with
+ * make_tuple(), you must use one of these safe patterns:
+ *
+ * SAFE USAGE:
+ *
+ * 1. Direct usage:
+ *    binary bin(100);
+ *    return make(env, bin);
+ *
+ * 2. Explicit move:
+ *    binary bin(100);
+ *    return make_tuple(env, am_ok, std::move(bin));
+ *
+ * 3. Convert to TERM first:
+ *    binary bin(100);
+ *    TERM bin_term = make(env, bin);
+ *    return make_tuple(env, am_ok, bin_term);
+ *
+ * PREVENTED (will not compile):
+ *    binary bin(100);
+ *    return make_tuple(env, am_ok, bin);  // ERROR - use std::move(bin) or convert to TERM
+ */
+
+// Helper to detect if any Args contain binary lvalue references (copying)
+namespace detail {
+    template<typename T>
+    struct is_binary_lvalue : std::false_type {};
+
+    // Only block lvalue references and const lvalue references (copying)
+    template<>
+    struct is_binary_lvalue<binary&> : std::true_type {};
+
+    template<>
+    struct is_binary_lvalue<const binary&> : std::true_type {};
+
+    // Allow binary&& (moving) and binary (temporary)
+
+    template<typename... Args>
+    constexpr bool has_binary_lvalue_v = (is_binary_lvalue<Args>::value || ...);
+}
+
+// make_tuple that allows moving binaries but prevents copying them
 template<typename... Args>
-TERM make_tuple(ErlNifEnv* env, Args&&... args)
+typename std::enable_if<!detail::has_binary_lvalue_v<Args...>, TERM>::type
+make_tuple(ErlNifEnv* env, Args&&... args)
 {
     return make(env, std::make_tuple(std::forward<Args&&>(args)...));
 }
+
+// Deleted overload that provides a clear error message when binary lvalue is used
+template<typename... Args>
+typename std::enable_if<detail::has_binary_lvalue_v<Args...>, TERM>::type
+make_tuple(ErlNifEnv* env, Args&&... args) = delete;
+// Compile error: Use std::move(bin) or convert to TERM first: TERM bin_term = make(env, bin);
 
 /*
   Disabling for now.  These feel too "loose".  Just use an explicit tuple

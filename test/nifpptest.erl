@@ -100,7 +100,8 @@ binary_test_() ->
         ?_assertError( badarg,  invoke_nif({binary2, 123})),
         ?_assertEqual( <<"">>,  invoke_nif({binary3,   0})),
         ?_assertEqual( 10, byte_size(invoke_nif({binary3,  10}))),
-        ?_assertEqual( {ok, <<"">>}, invoke_nif({binary4, 0}))
+        ?_assertEqual( {ok,    ~""}, invoke_nif({binary4, 0})),
+        ?_assertEqual( {ok, ~"abc"}, invoke_nif({binary5, ~"abc"}))
     ].
 
 double_test_() ->
