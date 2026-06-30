@@ -175,7 +175,7 @@ ERL_NIF_TERM nif_main(ErlNifEnv* env, nifpp::TERM term)
     {
         uint32_t n;
         get_throws(env, cmddata, n);
-        return make(env, binary{n});
+        return make_tuple(env, am_ok, binary{n});
     }
     else if(cmd=="string2")
     {

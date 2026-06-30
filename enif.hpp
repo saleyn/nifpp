@@ -268,6 +268,15 @@ struct binary: public ErlNifBinary
         assert(_size >= 0);
     }
 
+    binary(binary&& rhs)
+        : ErlNifBinary(rhs)
+        , needs_release(rhs.needs_release)
+        , allocated(rhs.allocated)
+    {
+        rhs.needs_release = false;
+        allocated         = false;
+    }
+
 #ifdef NIFPP_INTRUSIVE_UNIT_TEST
     static int release_counter;
 #endif
@@ -303,8 +312,9 @@ private:
     bool allocated;
 
     // there's no nice way to keep track of owns_data in copies, so just prevent copying
-    binary(const binary &) = delete;
-    binary & operator=(const binary &) = delete;
+    binary(const binary&) = delete;
+    binary& operator=(const binary&) = delete;
+    binary& operator=(binary&&) = delete;
 };
 
 #ifdef NIFPP_INTRUSIVE_UNIT_TEST
