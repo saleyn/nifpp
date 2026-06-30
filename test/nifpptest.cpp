@@ -624,8 +624,9 @@ ERL_NIF_TERM nif_main(ErlNifEnv* env, nifpp::TERM term)
         get_throws(env, cmddata, rangetuple);
 
         unsigned int result;
-        bool success = get(env, make(env, value), result, min, max);
-        return make(env, std::make_tuple(success, result));
+        bool success1 = get(env, make(env, value), result, min, max);
+        bool success2 = get(env, make(env, value), result, max);
+        return make_tuple(env, success1 && success2, result);
     }
     // Test new range-checking get() functions for long
     else if(cmd=="long_range_test")
