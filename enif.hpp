@@ -256,9 +256,17 @@ TERM make(ErlNifEnv* env, const binary& var);
 struct binary: public ErlNifBinary
 {
     //binary(): needs_release(false) {}
-    explicit binary(size_t _size)
+
+    // Allow binary{10} or binary(10) construction.
+    // NOTE: we could've used an initializer_list, but
+    // there's no way to static_assert(list.size() == 1)
+    template <typename T>
+      requires std::integral<T>
+    explicit binary(T _size)
         : needs_release(enif_alloc_binary(_size, this)), allocated(needs_release)
-    {}
+    {
+        assert(_size >= 0);
+    }
 
 #ifdef NIFPP_INTRUSIVE_UNIT_TEST
     static int release_counter;
