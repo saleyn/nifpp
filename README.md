@@ -416,20 +416,20 @@ input term without conversion.  This is useful in conjunction with tuple and
 list `nifpp::get()`/`nifpp::make()` (see below).
 
 For integers the `nifpp::get()` is available with range checking via the
-quaternary `get()`:
+min and max values:
 
 ```c++
 // Check that integer term is between -1 and 100
-int  value   = -1;
-bool success = get(env, make(env, value), -1, 100);
+int  value;
+bool success = get(env, make(env, -1), value, -1, 100);
 ```
 
-Unsigned integers can be checked against the maximum value with ternary `get()`:
+Unsigned integers can be checked against the maximum value:
 
 ```c++
 // Check that integer term is between 0 and 100
-unsigned int value = 50;
-bool success = get(env, make(env, value), 50);
+unsigned int value;
+bool success = get(env, make(env, 50), value, 50);
 ```
 
 #### Examples:
