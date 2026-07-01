@@ -16,20 +16,20 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        otp: ['24', '25', '26', '27']
+        otp: [27, 28, 29]
         compiler: ['gcc', 'clang']
         exclude:
-          # OTP 27 might not be available on all platforms yet
+          # OTP 29 might not be available on all platforms yet
           - os: macos-latest
-            otp: '27'
+            otp: 29
           # Windows doesn't have gcc/clang in the same way, use MSYS2
           - os: windows-latest
             compiler: 'clang'
           # Reduce matrix size by testing fewer combinations on Windows
           - os: windows-latest
-            otp: '24'
+            otp: 28
           - os: windows-latest
-            otp: '25'
+            otp: 29
 
     steps:
     - name: Checkout
