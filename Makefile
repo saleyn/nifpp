@@ -8,8 +8,10 @@ clean:
 	@rm -f rebar3.crashdump
 
 check:
-	clang-tidy --config-file=.clang-tidy enif.hpp -- -std=c++20 \
-		-I. -I$(shell erl -noshell -eval 'io:format("~s/usr/include~n", [code:root_dir()]), halt().')
+	@if command -v clang-tidy 2>/dev/null; then \
+	  clang-tidy --config-file=.clang-tidy enif.hpp -- -std=c++20 \
+		-I. -I$(shell erl -noshell -eval 'io:format("~s/usr/include~n", [code:root_dir()]), halt().'); \
+	fi
 	clang-format -i enif.hpp
 
 CheckOptions:
