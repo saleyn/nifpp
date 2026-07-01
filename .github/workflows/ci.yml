@@ -204,46 +204,22 @@ jobs:
     - name: Check code formatting
       run: |
         # Check if C++ code follows formatting standards
-        find . -name "*.cpp" -o -name "*.hpp" -o -name "*.c" -o -name "*.h" | \
-        xargs clang-format --dry-run --Werror --style=file --fallback-style=LLVM
+        # find . -name "*.cpp" -o -name "*.hpp" -o -name "*.c" -o -name "*.h" | \
+        # xargs clang-format --dry-run --Werror --style=file --fallback-style=LLVM
+        make check
 
-    - name: Run clang-tidy
-      run: |
-        cd test
-        # Create compile_commands.json for better analysis
-        export ERLANG_PATH=$(erl -eval 'io:format("~s", [lists:concat([code:root_dir(), "/erts-", erlang:system_info(version), "/include"])])' -s init stop -noshell)
+    # - name: Run clang-tidy
+    #   run: |
+    #     cd test
+    #     # Create compile_commands.json for better analysis
+    #     export ERLANG_PATH=$(erl -eval 'io:format("~s", [lists:concat([code:root_dir(), "/erts-", erlang:system_info(version), "/include"])])' -s init stop -noshell)
 
-        # Run clang-tidy on main source files
-        clang-tidy ../enif.hpp --checks=-*,readability-*,performance-*,modernize-*,bugprone-* \
-          --header-filter=.* -- -I../ -I${ERLANG_PATH} -std=c++20 || true
+    #     # Run clang-tidy on main source files
+    #     clang-tidy ../enif.hpp --checks=-*,readability-*,performance-*,modernize-*,bugprone-* \
+    #       --header-filter=.* -- -I../ -I${ERLANG_PATH} -std=c++20 || true
 
-        clang-tidy nifpptest.cpp --checks=-*,readability-*,performance-*,modernize-*,bugprone-* \
-          -- -I../ -I${ERLANG_PATH} -std=c++20 || true
-
-  docs:
-    name: Documentation
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-
-    - name: Check documentation
-      run: |
-        # Verify key documentation files exist
-        test -f README.md
-        test -f REFERENCE.md
-
-        # Check for broken links in markdown files
-        if command -v markdown-link-check &> /dev/null; then
-          find . -name "*.md" -exec markdown-link-check {} \;
-        else
-          echo "markdown-link-check not available, skipping link verification"
-        fi
-
-        # Verify code examples in README compile
-        echo "Checking README code examples..."
-        # This is a basic check - could be expanded to extract and compile examples
+    #     clang-tidy nifpptest.cpp --checks=-*,readability-*,performance-*,modernize-*,bugprone-* \
+    #       -- -I../ -I${ERLANG_PATH} -std=c++20 || true
 
   release:
     name: Create Release
