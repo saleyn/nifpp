@@ -51,6 +51,9 @@ jobs:
         otp-version: ${{ matrix.otp }}
         install-rebar: false
         install-hex: false
+
+    - name: Verify Erlang include path
+      shell: bash
       run: echo "Erlang root: $(erl -noshell -eval 'io:format("~s/usr/include~n", [code:root_dir()]), halt().')"
 
     - name: Linux - Install build dependencies
