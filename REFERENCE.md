@@ -21,6 +21,8 @@ NIFPP is a C++ wrapper for the Erlang NIF API that provides type-safe, RAII-comp
 - [Type Checking Functions](#type-checking-functions)
 - [Exception Handling](#exception-handling)
 
+See also: [Erlang NIF Documentation](https://www.erlang.org/doc/apps/erts/erl_nif.html).
+
 ## Core Types
 
 ### 🡅[TERM](#table-of-contents)

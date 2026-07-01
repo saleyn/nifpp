@@ -1,0 +1,141 @@
+#!/bin/bash
+# vim:ts=2:sw=2:et
+#------------------------------------------------------------------------------
+# Author: Serge Aleynikov <serge at gmail dot com>
+#------------------------------------------------------------------------------
+# A git hook script to fix trailing whitespace and UFT16 in your commits.
+# Bypass it by passing --no-verify option to git commit.
+#
+# Place this file in:
+# /usr/share/git-core/templates/hooks/pre-commit
+# then symlink using `fixhooks` alias in ~/.gitconfig
+#------------------------------------------------------------------------------
+
+echo "Running pre-commit hook"
+
+set -e
+
+# Redirect output to stderr.
+exec 1>&2
+
+# detect platform
+platform="win"
+uname_result=`uname`
+if [[ "$uname_result" == "Linux" ]]; then
+  platform="linux"
+elif [[ "$uname_result" == "Darwin" ]]; then
+  platform="mac"
+fi
+
+[[ "$platform" == "mac" ]] || e_option="-e" # mac does not understand -e
+
+#------------------------------------------------------------------------------
+# 1. Try to convert UTF-16 to UTF-8
+#------------------------------------------------------------------------------
+
+# change IFS to ignore filename's space in |for|
+OIFS=$IFS
+IFS=$'\n'
+files=( $(git diff --name-only --cached) )
+IFS=$OIFS
+converted=()
+
+filecount=${#files[@]}
+digits=${#filecount}  # Number of digits in filecount variable
+i=1
+failed=0
+
+# credits:
+# https://github.com/philz/snippets/blob/master/pre-commit-remove-trailing-whitespace.sh
+# https://github.com/imoldman/config/blob/master/pre-commit.git.sh
+
+if [ $platform = "win" ]; then
+  for f in ${files[@]}; do
+    [ ! -f "$f" ] && filecount=$((filecount-1)) && continue
+
+    # Try to determine file encoding
+    UTF16=$(file -b --mime-encoding "$f")
+    #if iconv -s -f utf-8 -t utf-8 $f > /dev/null; then
+    if ! [[ "$UTF16" =~ "utf-16" ]]; then
+      OUT="No UTF8 conversion needed for: $f"
+    elif touch "$f.utf8" && iconv -s -f $UTF16 -t utf-8 "$f" > "$f.utf8"; then
+      mv -f "$f.utf8" "$f"
+      converted+=( "$f" )
+      OUT="File converted UTF16 to UTF8.: \e[0;33m$f\e[0m";
+    else
+      rm -f "$f.utf8"
+      OUT="UTF8 conversion failed (bin?): \e[0;31m$f\e[0m";
+      failed=$((failed+1))
+    fi
+    printf "[%*s/%*s] -- %b\n" $digits $i $digits $filecount "$OUT"
+    i=$((i+1))
+  done
+fi
+
+#------------------------------------------------------------------------------
+# 2. Check for various whitespace issues, and fix them
+#------------------------------------------------------------------------------
+
+OIFS=$IFS
+IFS=$'\t'
+CONVERTED="\t${converted[@]}\t"
+IFS=$OIFS
+
+git diff --check --cached | awk -F\: '/space before tab in indent/{print $1}' | sort -u | while read f
+do
+  echo $e_option "Removing space before tab in indent in: \033[33m$f\033[0m"
+  sed -i -e :a -e 's/\s\t/  /g' "$f"
+  [[ ! "${CONVERTED}" =~ "\t${f}\t" ]] && git add $f
+done
+
+git diff --check --cached | awk -F\: '/new blank line at EOF/{print $1}' | sort -u | while read f
+do
+  echo $e_option "Removing blank lines at EOF in:         \033[33m$f\033[0m"
+  sed -i -e :a -e '/^\n*$/{$d;N;};/\n$/ba' "$f"
+  [[ ! "${CONVERTED}" =~ "\t${f}\t" ]] && git add $f
+done
+
+git diff --check --cached | awk -F\: '/trailing whitespace/{print $1}' | sort -u | while read f
+do
+  echo $e_option "Removed trailing whitespace in:         \033[33m$f\033[0m"
+  sed -i 's/\s\+$//' "$f"
+  [[ ! "${CONVERTED}" =~ "\t${f}\t" ]] && git add $f
+done
+
+if git rev-parse --verify HEAD >/dev/null 2>&1; then
+	against=HEAD
+else
+	# Initial commit: diff against an empty tree object
+	against=$(git hash-object -t tree /dev/null)
+fi
+
+if (( ${#converted[@]} > 0 )); then
+  echo "NOTE: Converted ${#converted[@]} files to UTF8. Review changes and 'git add' them again."
+  exit 1
+elif (( $failed )); then
+  echo "ERROR: Couldn't process $failed of $filecount files!"
+fi
+
+if command -v git-clang-format &> /dev/null; then
+  git-clang-format --diff
+
+  if [ $? -ne 0 ]; then
+    echo "Commit blocked: Code formatting does not match clang-format rules."
+    echo "Run 'git-clang-format' to automatically format your staged changes."
+    exit 1
+  fi
+fi
+
+# if command -v clang-tidy &> /dev/null; then
+#   clang-tidy --config-file=.clang-tidy -p . -- -std=c++20 -I. -I$(erl -noshell -eval 'io:format("~s/usr/include~n", [code:root_dir()]), halt().')
+# fi
+
+# If there still are whitespace errors, print the offending file names and fail.
+exec git diff-index --check --cached $against --
+#if git diff-index --check --cached $against -- ; then
+#  echo "Failure code $? in: git diff-index --check --cached $against -- # ${filecount} files"
+#  exit 1
+#fi
+
+# Now we can commit
+exit

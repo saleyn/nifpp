@@ -32,7 +32,7 @@ nifpp has been significantly enhanced with:
 - **Comprehensive Testing**: 139+ tests ensuring production reliability
 
 See also:
-- Erlang NIF documentation [here](https://www.erlang.org/doc/man/erl_nif).
+- [Erlang NIF Documentation](https://www.erlang.org/doc/apps/erts/erl_nif.html).
 - [Reference Guide](REFERENCE.md) | [📖 Online Documentation](https://saleyn.github.io/nifpp/)
 
 NOTE: the C++ `nifpp.h` file is deprecated and replaced by `enif.hpp`.
