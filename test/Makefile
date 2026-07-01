@@ -1,5 +1,15 @@
-ERLANG_PATH = $(shell erl -eval 'io:format("~s", [lists:concat([code:root_dir(), "/erts-", erlang:system_info(version), "/include"])])' -s init stop -noshell 2>/dev/null || echo "")
+# Try to get Erlang include path from environment first, then auto-detect
+ERLANG_PATH = $(or $(ERLANG_INCLUDE),$(shell erl -eval 'io:format("~s", [lists:concat([code:root_dir(), "/erts-", erlang:system_info(version), "/include"])])' -s init stop -noshell 2>/dev/null || echo ""))
+# If auto-detection failed, try alternative paths
+ifeq ($(ERLANG_PATH),)
+  ERLANG_PATH = $(shell erl -eval 'io:format("~s", [lists:concat([code:root_dir(), "/usr/include"])])' -s init stop -noshell 2>/dev/null || echo "")
+endif
 NIF_INCLUDE:=-I../ $(if $(ERLANG_PATH),-I$(ERLANG_PATH),)
+
+# Debug output for CI troubleshooting
+$(info DEBUG: ERLANG_INCLUDE=$(ERLANG_INCLUDE))
+$(info DEBUG: ERLANG_PATH=$(ERLANG_PATH))
+$(info DEBUG: NIF_INCLUDE=$(NIF_INCLUDE))
 
 ifneq ($(optimize),false)
   OPT = -O3 -ffunction-sections -funroll-loops -fomit-frame-pointer
@@ -11,15 +21,20 @@ CPPFLAGS = -std=c++20
 LD_COMMON_FLAGS = -flto
 
 ifeq ($(disassemble),)
-ifneq ($(OS),Windows_NT)
-  COMMON_FLAGS += -fPIC
-
-  ifeq ($(shell uname),Darwin)
-    LDFLAGS += -dynamiclib -undefined dynamic_lookup
-  else
+  # Windows-specific settings
+  ifeq ($(OS),Windows_NT)
     LDFLAGS += -shared
+    LIB_EXT = .dll
+  else
+    COMMON_FLAGS += -fPIC
+    LIB_EXT = .so
+
+    ifeq ($(shell uname),Darwin)
+      LDFLAGS += -dynamiclib -undefined dynamic_lookup
+    else
+      LDFLAGS += -shared
+    endif
   endif
-endif
 endif
 
 all: compile

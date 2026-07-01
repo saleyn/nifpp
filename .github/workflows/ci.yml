@@ -123,12 +123,52 @@ jobs:
       if: matrix.os == 'windows-latest'
       shell: msys2 {0}
       run: |
-        # Add both MinGW and Erlang to PATH
+        # Add MinGW to PATH
         export PATH="/mingw64/bin:$PATH"
-        # Find and add erlang path
+
+        # Find Erlang installation and headers
         if command -v erl &> /dev/null; then
           echo "✓ Erlang found in PATH"
           erl -eval 'io:format("Erlang/OTP ~s~n", [erlang:system_info(otp_release)]), halt().' -noshell
+
+          # Get Erlang root directory
+          ERLANG_ROOT=$(erl -noshell -eval 'io:format("~s~n", [code:root_dir()]), halt().' 2>/dev/null)
+          echo "Erlang root: $ERLANG_ROOT"
+
+          # Try multiple possible include paths on Windows
+          POTENTIAL_INCLUDES=(
+            "${ERLANG_ROOT}/usr/include"
+            "${ERLANG_ROOT}/include"
+            "${ERLANG_ROOT}/erts-"*/include
+            "$(dirname "$ERLANG_ROOT")/include"
+          )
+
+          ERLANG_INCLUDE=""
+          for inc_path in "${POTENTIAL_INCLUDES[@]}"; do
+            # Handle glob patterns
+            for expanded_path in $inc_path; do
+              if [ -d "$expanded_path" ] && [ -f "$expanded_path/erl_nif.h" ]; then
+                ERLANG_INCLUDE="$expanded_path"
+                echo "✓ Found Erlang headers at: $ERLANG_INCLUDE"
+                ls -la "$ERLANG_INCLUDE"/erl_nif.h
+                break 2
+              fi
+            done
+          done
+
+          if [ -z "$ERLANG_INCLUDE" ]; then
+            echo "⚠ Could not find erl_nif.h in any of the expected locations"
+            echo "Searched in:"
+            for inc_path in "${POTENTIAL_INCLUDES[@]}"; do
+              echo "  - $inc_path"
+            done
+            # Try to find it anywhere under Erlang root
+            echo "Searching for erl_nif.h under $ERLANG_ROOT..."
+            find "$ERLANG_ROOT" -name "erl_nif.h" 2>/dev/null || echo "No erl_nif.h found"
+          fi
+
+          # Export the include path for make
+          export ERLANG_INCLUDE
         else
           echo "⚠ Erlang not found in current PATH"
           # Try to find Erlang installation
@@ -138,10 +178,11 @@ jobs:
             export PATH="$ERLANG_HOME:$PATH"
           fi
         fi
+
         echo "Building with MinGW GCC"
         make compile
-        # Verify the shared libraries were created
-        ls -la test/*.so
+        # Verify the shared libraries were created (Windows might create .dll instead)
+        ls -la test/*.so test/*.dll 2>/dev/null || true
 
     - name: Run tests (Unix)
       if: matrix.os != 'windows-latest'
@@ -152,9 +193,10 @@ jobs:
       if: matrix.os == 'windows-latest'
       shell: msys2 {0}
       run: |
-        # Add both MinGW and Erlang to PATH
+        # Add MinGW to PATH
         export PATH="/mingw64/bin:$PATH"
-        # Find and add erlang path
+
+        # Find and add Erlang path (same as build step)
         if command -v erl &> /dev/null; then
           echo "✓ Erlang found in PATH"
         else
@@ -165,6 +207,27 @@ jobs:
             export PATH="$ERLANG_HOME:$PATH"
           fi
         fi
+
+        # Set the same include path as in build step
+        ERLANG_ROOT=$(erl -noshell -eval 'io:format("~s~n", [code:root_dir()]), halt().' 2>/dev/null)
+        POTENTIAL_INCLUDES=(
+          "${ERLANG_ROOT}/usr/include"
+          "${ERLANG_ROOT}/include"
+          "${ERLANG_ROOT}/erts-"*/include
+          "$(dirname "$ERLANG_ROOT")/include"
+        )
+
+        ERLANG_INCLUDE=""
+        for inc_path in "${POTENTIAL_INCLUDES[@]}"; do
+          for expanded_path in $inc_path; do
+            if [ -d "$expanded_path" ] && [ -f "$expanded_path/erl_nif.h" ]; then
+              ERLANG_INCLUDE="$expanded_path"
+              break 2
+            fi
+          done
+        done
+        export ERLANG_INCLUDE
+
         make test
 
     - name: Check for memory leaks (Linux only)
