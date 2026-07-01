@@ -6,7 +6,7 @@
 
 **nifpp** is a comprehensive, modern C++ wrapper for the Erlang NIF API that makes writing NIFs safer, more maintainable, and more productive.
 
-See [Reference Guide](REFERENCE.md).
+See [Reference Guide](REFERENCE.md) or visit the [📖 Online Documentation](https://saleyn.github.io/nifpp/).
 
 ### Key Features
 
@@ -33,7 +33,7 @@ nifpp has been significantly enhanced with:
 
 See also:
 - Erlang NIF documentation [here](https://www.erlang.org/doc/man/erl_nif).
-- [Reference Guide](REFERENCE.md).
+- [Reference Guide](REFERENCE.md) | [📖 Online Documentation](https://saleyn.github.io/nifpp/)
 
 NOTE: the C++ `nifpp.h` file is deprecated and replaced by `enif.hpp`.
 

@@ -1,6 +1,7 @@
 //
-// select_wrapper_test.cpp - Test the new enif_select wrapper functions
+// select_wrapper_test.cpp - Test the new enif_select wrapper functions (Linux-specific)
 //
+#ifdef __linux__
 #include "enif.hpp"
 #include <functional>
 #include <sys/eventfd.h>
@@ -151,3 +152,31 @@ static ErlNifFunc nif_funcs[] = {
 };
 
 ERL_NIF_INIT(select_wrapper_test, nif_funcs, load, NULL, NULL, NULL)
+
+#else // !__linux__
+
+// Stub implementation for non-Linux platforms
+#include "enif.hpp"
+
+static ERL_NIF_TERM unsupported_nif(ErlNifEnv* env, [[maybe_unused]] int argc, [[maybe_unused]] const ERL_NIF_TERM argv[])
+{
+    return nifpp::make_tuple(env, nifpp::atom(env, "error"), "select_wrapper_test only supported on Linux"_b);
+}
+
+static int load(ErlNifEnv* env, [[maybe_unused]] void** priv_data, [[maybe_unused]] ERL_NIF_TERM load_info) {
+    nifpp::initialize_known_atoms(env);
+    return 0;
+}
+
+static ErlNifFunc nif_funcs[] = {
+    {"create_test_fd",      0, unsupported_nif, 0},
+    {"write_test_fd",       2, unsupported_nif, 0},
+    {"test_select_read",    1, unsupported_nif, 0},
+    {"test_select_write",   1, unsupported_nif, 0},
+    {"test_select_stop",    1, unsupported_nif, 0},
+    {"test_msg_env_move",   0, unsupported_nif, 0},
+};
+
+ERL_NIF_INIT(select_wrapper_test, nif_funcs, load, NULL, NULL, NULL)
+
+#endif // __linux__

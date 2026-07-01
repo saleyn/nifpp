@@ -123,7 +123,21 @@ jobs:
       if: matrix.os == 'windows-latest'
       shell: msys2 {0}
       run: |
+        # Add both MinGW and Erlang to PATH
         export PATH="/mingw64/bin:$PATH"
+        # Find and add erlang path
+        if command -v erl &> /dev/null; then
+          echo "✓ Erlang found in PATH"
+          erl -eval 'io:format("Erlang/OTP ~s~n", [erlang:system_info(otp_release)]), halt().' -noshell
+        else
+          echo "⚠ Erlang not found in current PATH"
+          # Try to find Erlang installation
+          ERLANG_HOME=$(find /c/Program\ Files -name "erl.exe" 2>/dev/null | head -1 | dirname 2>/dev/null || echo "")
+          if [ -n "$ERLANG_HOME" ]; then
+            echo "Found Erlang at: $ERLANG_HOME"
+            export PATH="$ERLANG_HOME:$PATH"
+          fi
+        fi
         echo "Building with MinGW GCC"
         make compile
         # Verify the shared libraries were created
@@ -138,7 +152,19 @@ jobs:
       if: matrix.os == 'windows-latest'
       shell: msys2 {0}
       run: |
+        # Add both MinGW and Erlang to PATH
         export PATH="/mingw64/bin:$PATH"
+        # Find and add erlang path
+        if command -v erl &> /dev/null; then
+          echo "✓ Erlang found in PATH"
+        else
+          echo "⚠ Erlang not found in current PATH"
+          ERLANG_HOME=$(find /c/Program\ Files -name "erl.exe" 2>/dev/null | head -1 | dirname 2>/dev/null || echo "")
+          if [ -n "$ERLANG_HOME" ]; then
+            echo "Found Erlang at: $ERLANG_HOME"
+            export PATH="$ERLANG_HOME:$PATH"
+          fi
+        fi
         make test
 
     - name: Check for memory leaks (Linux only)

@@ -1,11 +1,11 @@
-ERLANG_PATH = $(shell erl -eval 'io:format("~s", [lists:concat([code:root_dir(), "/erts-", erlang:system_info(version), "/include"])])' -s init stop -noshell)
-NIF_INCLUDE:=-I../ -I$(ERLANG_PATH)
+ERLANG_PATH = $(shell erl -eval 'io:format("~s", [lists:concat([code:root_dir(), "/erts-", erlang:system_info(version), "/include"])])' -s init stop -noshell 2>/dev/null || echo "")
+NIF_INCLUDE:=-I../ $(if $(ERLANG_PATH),-I$(ERLANG_PATH),)
 
 ifneq ($(optimize),false)
   OPT = -O3 -ffunction-sections -funroll-loops -fomit-frame-pointer
 endif
 
-COMMON_FLAGS = -g -ansi -pedantic -Wall -Wextra $(OPT) $(NIF_INCLUDE)
+COMMON_FLAGS = -g -pedantic -Wall -Wextra $(OPT) $(NIF_INCLUDE)
 CFLAGS = -std=c99
 CPPFLAGS = -std=c++20
 LD_COMMON_FLAGS = -flto
@@ -24,9 +24,15 @@ endif
 
 all: compile
 
-compile: nifpptest.so tuple_twiddle_cpp.so$(SFX) tuple_twiddle_c.so$(SFX) selecttest.so$(SFX) \
-  select_wrapper_test.so$(SFX) nifpptest.beam tuple_twiddle_cpp.beam tuple_twiddle_c.beam \
-  selecttest.beam select_wrapper_test.beam
+# Define Linux-specific targets
+ifeq ($(shell uname -s 2>/dev/null || echo unknown),Linux)
+  LINUX_TARGETS = selecttest.so$(SFX) select_wrapper_test.so$(SFX) selecttest.beam select_wrapper_test.beam
+else
+  LINUX_TARGETS =
+endif
+
+compile: nifpptest.so tuple_twiddle_cpp.so$(SFX) tuple_twiddle_c.so$(SFX) \
+  nifpptest.beam tuple_twiddle_cpp.beam tuple_twiddle_c.beam $(LINUX_TARGETS)
 
 ast: tuple_twiddle_cpp.cpp ../enif.hpp
 	clang++ $(COMMON_FLAGS) $(CPPFLAGS) -Xclang -ast-print -fsyntax-only $< > $<.ast
@@ -37,17 +43,22 @@ ast: tuple_twiddle_cpp.cpp ../enif.hpp
 %.o: %.cpp ../enif.hpp
 	$(CXX) $(COMMON_FLAGS) $(CPPFLAGS) -c $<
 
+# Linux-specific build rules
+ifeq ($(shell uname -s 2>/dev/null || echo unknown),Linux)
 selecttest.o: selecttest.cpp ../enif.hpp
 	$(CXX) $(COMMON_FLAGS) $(CPPFLAGS) -fpermissive -c $<
+endif
 
 nifpptest.so: nifpptest.o nifpptest_2tu.o
 	$(CXX) $(LDFLAGS) $(LD_COMMON_FLAGS) -o $@ $^
 
+ifeq ($(shell uname -s 2>/dev/null || echo unknown),Linux)
 selecttest.so: selecttest.o
 	$(CXX) $(LDFLAGS) $(LD_COMMON_FLAGS) -o $@ $^
 
 select_wrapper_test.so: select_wrapper_test.o
 	$(CXX) $(LDFLAGS) $(LD_COMMON_FLAGS) -o $@ $^
+endif
 
 mmap_binary.so: mmap_binary.o
 	$(CXX) $(LDFLAGS) $(LD_COMMON_FLAGS) -lboost_iostreams-mt -o $@ $<
@@ -62,8 +73,10 @@ tuple_twiddle_cpp.so: tuple_twiddle_cpp.o
 	erlc -DTEST -DEUNIT $<
 
 test: compile
+ifeq ($(shell uname -s 2>/dev/null || echo unknown),Linux)
 	erl -noshell -noinput -s selecttest -eval 'halt(0).'
 	erl -noshell -noinput -s select_wrapper_test -eval 'halt(0).'
+endif
 	erl -noshell -noinput -s nifpptest
 
 clean:
