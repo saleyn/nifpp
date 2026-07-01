@@ -85,8 +85,7 @@ static_assert(sizeof(TERM) == sizeof(ERL_NIF_TERM), "TERM size does not match ER
 struct str_atom : public std::string {
   template <class... Args>
   str_atom(Args&&... args) : std::string(std::forward<Args&&>(args)...)
-  {
-  }
+  {}
 };
 
 struct atom {
@@ -211,9 +210,8 @@ inline void initialize_known_atoms(ErlNifEnv* env)
   am_nil = atom(env, "nil");
 
   // Initialize user-registered atoms
-  for (auto* reg = detail::atom_registry; reg != nullptr; reg = reg->next) {
+  for (auto* reg = detail::atom_registry; reg != nullptr; reg = reg->next)
     *(reg->atom_ptr) = atom(env, reg->atom_name);
-  }
 }
 
 } // namespace nifpp
@@ -787,9 +785,8 @@ inline typename std::enable_if<detail::is_consolidatable_container<Container>::v
 make(ErlNifEnv* env, const Container& var)
 {
   ERL_NIF_TERM tail = enif_make_list(env, 0);
-  for (auto i = var.rbegin(); i != var.rend(); ++i) {
+  for (auto i = var.rbegin(); i != var.rend(); ++i)
     tail = enif_make_list_cell(env, make(env, *i), tail);
-  }
   return TERM(tail);
 }
 
@@ -801,9 +798,8 @@ inline typename std::enable_if<detail::is_consolidatable_container<Container>::v
 make(ErlNifEnv* env, const Container& var)
 {
   ERL_NIF_TERM tail = enif_make_list(env, 0);
-  for (auto i = var.begin(); i != var.end(); ++i) {
+  for (auto i = var.begin(); i != var.end(); ++i)
     tail = enif_make_list_cell(env, make(env, *i), tail);
-  }
   return TERM(tail);
 }
 
@@ -887,8 +883,7 @@ struct resource_events {
   explicit resource_events(ResourceDownEvent<T> down, ResourceStopEvent<T> stop = nullptr,
                            ResourceDynCallEvent<T> dyncall = nullptr)
       : on_down(down), on_stop(stop), on_dyncall(dyncall)
-  {
-  }
+  {}
 
   ResourceDownEvent<T> on_down;
   ResourceStopEvent<T> on_stop;
@@ -914,8 +909,7 @@ public:
 private:
   resource_ptr(T* p, bool add_ref) : px(p)
   {
-    if (px != 0 && add_ref)
-      enif_keep_resource((void*)px);
+    if (px != 0 && add_ref) enif_keep_resource((void*)px);
   }
 
   // construction only permitted from these functions:
@@ -931,14 +925,12 @@ private:
 public:
   resource_ptr(resource_ptr const& rhs) : px(rhs.px)
   {
-    if (px != 0)
-      enif_keep_resource((void*)px);
+    if (px != 0) enif_keep_resource((void*)px);
   }
 
   ~resource_ptr()
   {
-    if (px != 0)
-      enif_release_resource((void*)px);
+    if (px != 0) enif_release_resource((void*)px);
   }
 
   resource_ptr(resource_ptr&& rhs) : px(rhs.px) { rhs.px = 0; }
@@ -1090,8 +1082,7 @@ void resource_dtor(ErlNifEnv*, void* obj)
 {
   auto p = reinterpret_cast<resource_wrapper<T>*>(obj);
   // invoke destructor only if object was successfully constructed
-  if (p->constructed)
-    p->obj.~T();
+  if (p->constructed) p->obj.~T();
 }
 
 // ErlNifResourceDown
@@ -1099,8 +1090,7 @@ template <typename T>
 void resource_down(ErlNifEnv* env, void* obj, ErlNifPid* pid, ErlNifMonitor* mon)
 {
   auto p = reinterpret_cast<resource_wrapper<T>*>(obj);
-  if (p->events.on_down)
-    p->events.on_down(&p->obj, env, pid, mon);
+  if (p->events.on_down) p->events.on_down(&p->obj, env, pid, mon);
 }
 
 // ErlNifResourceStop
@@ -1108,8 +1098,7 @@ template <typename T>
 void resource_stop(ErlNifEnv* env, void* obj, ErlNifEvent event, int is_direct_call)
 {
   auto p = reinterpret_cast<resource_wrapper<T>*>(obj);
-  if (p->events.on_stop)
-    p->events.on_stop(&p->obj, env, event, is_direct_call);
+  if (p->events.on_stop) p->events.on_stop(&p->obj, env, event, is_direct_call);
 }
 
 // ErlNifResourceDynCall
@@ -1117,8 +1106,7 @@ template <typename T>
 void resource_dyncall(ErlNifEnv* env, void* obj, void* call_data)
 {
   auto p = reinterpret_cast<resource_wrapper<T>*>(obj);
-  if (p->events.on_dyncall)
-    p->events.on_dyncall(&p->obj, env, call_data);
+  if (p->events.on_dyncall) p->events.on_dyncall(&p->obj, env, call_data);
 }
 
 template <typename T>
@@ -1237,8 +1225,7 @@ public:
   msg_env() : m_env(enif_alloc_env()) {}
   ~msg_env()
   {
-    if (m_env)
-      enif_free_env(m_env);
+    if (m_env) enif_free_env(m_env);
   }
 
   msg_env(msg_env const&) = delete;
@@ -1248,8 +1235,7 @@ public:
   msg_env& operator=(msg_env&& rhs) noexcept
   {
     if (this != &rhs) {
-      if (m_env)
-        enif_free_env(m_env);
+      if (m_env) enif_free_env(m_env);
       m_env = rhs.m_env;
       rhs.m_env = nullptr;
     }
@@ -1750,9 +1736,8 @@ TERM make(ErlNifEnv* env, const std::array<T, N>& var)
 {
   ERL_NIF_TERM tail;
   tail = enif_make_list(env, 0);
-  for (auto i = var.rbegin(); i != var.rend(); i++) {
+  for (auto i = var.rbegin(); i != var.rend(); i++)
     tail = enif_make_list_cell(env, make(env, *i), tail);
-  }
   return TERM(tail);
 }
 template <size_t N>
@@ -1776,9 +1761,8 @@ TERM make(ErlNifEnv* env, const std::unordered_set<T>& var)
 {
   ERL_NIF_TERM tail;
   tail = enif_make_list(env, 0);
-  for (auto i = var.begin(); i != var.end(); i++) {
+  for (auto i = var.begin(); i != var.end(); i++)
     tail = enif_make_list_cell(env, make(env, *i), tail);
-  }
   return TERM(tail);
 }
 
@@ -1793,9 +1777,8 @@ TERM make(ErlNifEnv* env, const std::multiset<T>& var)
 {
   ERL_NIF_TERM tail;
   tail = enif_make_list(env, 0);
-  for (auto i = var.rbegin(); i != var.rend(); i++) {
+  for (auto i = var.rbegin(); i != var.rend(); i++)
     tail = enif_make_list_cell(env, make(env, *i), tail);
-  }
   return TERM(tail);
 }
 
@@ -1805,18 +1788,15 @@ bool map_for_each(ErlNifEnv* env, ERL_NIF_TERM term, const F& f)
 {
   ErlNifMapIterator iter;
 
-  if (!enif_map_iterator_create(env, term, &iter, ERL_NIF_MAP_ITERATOR_HEAD))
-    return 0;
+  if (!enif_map_iterator_create(env, term, &iter, ERL_NIF_MAP_ITERATOR_HEAD)) return 0;
 
   TERM key_term, value_term;
   TK key;
   TV value;
   while (enif_map_iterator_get_pair(env, &iter, (ERL_NIF_TERM*)&key_term,
                                     (ERL_NIF_TERM*)&value_term)) {
-    if (!get(env, key_term, key))
-      goto error; // conversion failure
-    if (!get(env, value_term, value))
-      goto error; // conversion failure
+    if (!get(env, key_term, key)) goto error;     // conversion failure
+    if (!get(env, value_term, value)) goto error; // conversion failure
     f(std::move(key), std::move(value));
 
     enif_map_iterator_next(env, &iter);
@@ -1855,8 +1835,7 @@ template <typename TK, typename TV>
 TERM make(ErlNifEnv* env, const std::map<TK, TV>& var, TERM* map_to_use)
 {
   TERM map(map_to_use ? map_to_use->v : enif_make_new_map(env));
-  for (auto& kv : var)
-    add_to_map(env, map, std::make_pair(kv.first, kv.second));
+  for (auto& kv : var) add_to_map(env, map, std::make_pair(kv.first, kv.second));
   return map;
 }
 
@@ -1871,8 +1850,7 @@ template <typename TK, typename TV>
 TERM make(ErlNifEnv* env, const std::unordered_map<TK, TV>& var, TERM* map_to_use)
 {
   TERM map(map_to_use ? map_to_use->v : enif_make_new_map(env));
-  for (auto& kv : var)
-    add_to_map(env, map, std::make_pair(kv.first, kv.second));
+  for (auto& kv : var) add_to_map(env, map, std::make_pair(kv.first, kv.second));
   return map;
 }
 #endif // NIFPP_HAS_MAPS
@@ -1883,18 +1861,14 @@ template <typename T>
 T get(ErlNifEnv* env, ERL_NIF_TERM term)
 {
   T temp;
-  if (get(env, term, temp)) {
-    return temp;
-  }
+  if (get(env, term, temp)) return temp;
   throw std::invalid_argument("term");
 }
 
 template <typename T>
 void get_throws(ErlNifEnv* env, ERL_NIF_TERM term, T& t)
 {
-  if (!get(env, term, t)) {
-    throw std::invalid_argument("t");
-  }
+  if (!get(env, term, t)) throw std::invalid_argument("t");
 }
 
 //------------------------------------------------------------------------------
