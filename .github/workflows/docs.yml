@@ -136,7 +136,7 @@ jobs:
           --from markdown \
           --to html \
           --wrap=preserve \
-          --highlight-style=github >> _site/index.html
+          --highlight-style=pygments >> _site/index.html
 
         # Close HTML tags
         cat >> _site/index.html << 'EOF'

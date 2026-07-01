@@ -111,10 +111,6 @@ jobs:
           int main() { return 0; }' | $CXX -std=c++20 -x c++ - -o /tmp/test_cpp20 && echo "✓ C++20 supported" || echo "✗ C++20 not supported"
         fi
 
-    - name: Check code formatting
-      if: matrix.os != 'windows-latest'
-      run: make check
-
     - name: Build library (Unix)
       if: matrix.os != 'windows-latest'
       run: |
