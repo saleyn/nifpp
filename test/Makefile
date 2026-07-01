@@ -1,9 +1,22 @@
 # Try to get Erlang include path from environment first, then auto-detect
-ERLANG_PATH = $(or $(ERLANG_INCLUDE),$(shell erl -eval 'io:format("~s", [lists:concat([code:root_dir(), "/erts-", erlang:system_info(version), "/include"])])' -s init stop -noshell 2>/dev/null || echo ""))
-# If auto-detection failed, try alternative paths
+ERLANG_PATH = $(ERLANG_INCLUDE)
+# If not set via environment, try auto-detection
+ifeq ($(ERLANG_PATH),)
+  # Try the standard erts-version path
+  ERLANG_PATH = $(shell erl -eval 'io:format("~s", [lists:concat([code:root_dir(), "/erts-", erlang:system_info(version), "/include"])])' -s init stop -noshell 2>/dev/null || echo "")
+endif
+# If that failed, try usr/include
 ifeq ($(ERLANG_PATH),)
   ERLANG_PATH = $(shell erl -eval 'io:format("~s", [lists:concat([code:root_dir(), "/usr/include"])])' -s init stop -noshell 2>/dev/null || echo "")
 endif
+# On Windows/MSYS2, try converting the path if it looks like a Windows path
+ifeq ($(OS),Windows_NT)
+  ifneq ($(findstring :,$(ERLANG_PATH)),)
+    # This looks like a Windows path (contains :), try converting with cygpath
+    ERLANG_PATH := $(shell cygpath -u "$(ERLANG_PATH)" 2>/dev/null || echo "$(ERLANG_PATH)")
+  endif
+endif
+
 NIF_INCLUDE:=-I../ $(if $(ERLANG_PATH),-I$(ERLANG_PATH),)
 
 # Debug output for CI troubleshooting

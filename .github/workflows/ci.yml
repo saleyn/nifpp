@@ -35,30 +35,7 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
 
-    - name: Setup Erlang/OTP
-      uses: erlef/setup-beam@v1
-      with:
-        otp-version: ${{ matrix.otp }}
-        install-rebar3: false
-        install-hex: false
-
-    - name: Install build dependencies (Ubuntu)
-      if: matrix.os == 'ubuntu-latest'
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y build-essential g++ clang
-
-    - name: Install build dependencies (macOS)
-      if: matrix.os == 'macos-latest'
-      run: |
-        # Xcode command line tools should be available
-        xcode-select --install 2>/dev/null || true
-        # Install additional compilers if needed
-        if [ "${{ matrix.compiler }}" = "gcc" ]; then
-          brew install gcc
-        fi
-
-    - name: Setup MSYS2 (Windows)
+    - name: Windows - Setup MSYS2
       if: matrix.os == 'windows-latest'
       uses: msys2/setup-msys2@v2
       with:
@@ -67,6 +44,30 @@ jobs:
           mingw-w64-x86_64-gcc
           mingw-w64-x86_64-make
           make
+
+    - name: Setup Erlang/OTP
+      uses: erlef/setup-beam@v1
+      with:
+        otp-version: ${{ matrix.otp }}
+        install-rebar: false
+        install-hex: false
+      run: echo "Erlang root: $(erl -noshell -eval 'io:format("~s/usr/include~n", [code:root_dir()]), halt().')"
+
+    - name: Linux - Install build dependencies
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential g++ clang
+
+    - name: MacOS - Install build dependencies
+      if: matrix.os == 'macos-latest'
+      run: |
+        # Xcode command line tools should be available
+        xcode-select --install 2>/dev/null || true
+        # Install additional compilers if needed
+        if [ "${{ matrix.compiler }}" = "gcc" ]; then
+          brew install gcc
+        fi
 
     - name: Cache build artifacts
       uses: actions/cache@v3
@@ -127,56 +128,86 @@ jobs:
         export PATH="/mingw64/bin:$PATH"
 
         # Find Erlang installation and headers
+        echo "=== Debugging Erlang detection ==="
+        echo "Current PATH: $PATH"
+        which erl || echo "erl not found in PATH"
+
         if command -v erl &> /dev/null; then
           echo "✓ Erlang found in PATH"
           erl -eval 'io:format("Erlang/OTP ~s~n", [erlang:system_info(otp_release)]), halt().' -noshell
 
-          # Get Erlang root directory
-          ERLANG_ROOT=$(erl -noshell -eval 'io:format("~s~n", [code:root_dir()]), halt().' 2>/dev/null)
-          echo "Erlang root: $ERLANG_ROOT"
+          # Get Erlang root directory (Windows paths need conversion)
+          ERLANG_ROOT_RAW=$(erl -noshell -eval 'io:format("~s~n", [code:root_dir()]), halt().' 2>/dev/null)
+          echo "Raw Erlang root: $ERLANG_ROOT_RAW"
+
+          # Convert Windows path to MSYS2 path if needed
+          if [[ "$ERLANG_ROOT_RAW" == *":"* ]]; then
+            # This looks like a Windows path (C:\...), convert it
+            ERLANG_ROOT=$(cygpath -u "$ERLANG_ROOT_RAW" 2>/dev/null || echo "$ERLANG_ROOT_RAW")
+            echo "Converted Erlang root: $ERLANG_ROOT"
+          else
+            ERLANG_ROOT="$ERLANG_ROOT_RAW"
+          fi
 
           # Try multiple possible include paths on Windows
           POTENTIAL_INCLUDES=(
             "${ERLANG_ROOT}/usr/include"
             "${ERLANG_ROOT}/include"
-            "${ERLANG_ROOT}/erts-"*/include
-            "$(dirname "$ERLANG_ROOT")/include"
+            "${ERLANG_ROOT_RAW}/usr/include"
+            "${ERLANG_ROOT_RAW}/include"
           )
+
+          # Also try erts-specific directories
+          for erts_dir in "${ERLANG_ROOT}"/erts-*/include "${ERLANG_ROOT_RAW}"/erts-*/include; do
+            if [ -d "$erts_dir" ]; then
+              POTENTIAL_INCLUDES+=("$erts_dir")
+            fi
+          done
+
+          echo "Potential include directories:"
+          for inc_path in "${POTENTIAL_INCLUDES[@]}"; do
+            echo "  - $inc_path"
+          done
 
           ERLANG_INCLUDE=""
           for inc_path in "${POTENTIAL_INCLUDES[@]}"; do
-            # Handle glob patterns
-            for expanded_path in $inc_path; do
-              if [ -d "$expanded_path" ] && [ -f "$expanded_path/erl_nif.h" ]; then
-                ERLANG_INCLUDE="$expanded_path"
-                echo "✓ Found Erlang headers at: $ERLANG_INCLUDE"
-                ls -la "$ERLANG_INCLUDE"/erl_nif.h
-                break 2
-              fi
-            done
+            if [ -d "$inc_path" ] && [ -f "$inc_path/erl_nif.h" ]; then
+              ERLANG_INCLUDE="$inc_path"
+              echo "✓ Found Erlang headers at: $ERLANG_INCLUDE"
+              ls -la "$ERLANG_INCLUDE"/erl_nif.h
+              break
+            fi
           done
 
           if [ -z "$ERLANG_INCLUDE" ]; then
             echo "⚠ Could not find erl_nif.h in any of the expected locations"
-            echo "Searched in:"
-            for inc_path in "${POTENTIAL_INCLUDES[@]}"; do
-              echo "  - $inc_path"
+            echo "Let's search more broadly..."
+            # Search in both converted and raw paths
+            for search_root in "$ERLANG_ROOT" "$ERLANG_ROOT_RAW"; do
+              if [ -n "$search_root" ] && [ -d "$search_root" ]; then
+                echo "Searching for erl_nif.h under $search_root..."
+                find "$search_root" -name "erl_nif.h" 2>/dev/null | head -5
+              fi
             done
-            # Try to find it anywhere under Erlang root
-            echo "Searching for erl_nif.h under $ERLANG_ROOT..."
-            find "$ERLANG_ROOT" -name "erl_nif.h" 2>/dev/null || echo "No erl_nif.h found"
           fi
 
           # Export the include path for make
           export ERLANG_INCLUDE
         else
-          echo "⚠ Erlang not found in current PATH"
+          echo "⚠ Erlang not found in current PATH - searching manually"
           # Try to find Erlang installation
-          ERLANG_HOME=$(find /c/Program\ Files -name "erl.exe" 2>/dev/null | head -1 | dirname 2>/dev/null || echo "")
-          if [ -n "$ERLANG_HOME" ]; then
-            echo "Found Erlang at: $ERLANG_HOME"
-            export PATH="$ERLANG_HOME:$PATH"
-          fi
+          for prog_files in "/c/Program Files" "/c/Program Files (x86)"; do
+            if [ -d "$prog_files" ]; then
+              echo "Searching in $prog_files..."
+              find "$prog_files" -name "erl.exe" 2>/dev/null | head -3
+              ERLANG_HOME=$(find "$prog_files" -name "erl.exe" 2>/dev/null | head -1 | dirname 2>/dev/null || echo "")
+              if [ -n "$ERLANG_HOME" ]; then
+                echo "Found Erlang at: $ERLANG_HOME"
+                export PATH="$ERLANG_HOME:$PATH"
+                break
+              fi
+            fi
+          done
         fi
 
         echo "Building with MinGW GCC"
@@ -256,8 +287,8 @@ jobs:
     - name: Setup Erlang/OTP (for headers)
       uses: erlef/setup-beam@v1
       with:
-        otp-version: '26'
-        install-rebar3: false
+        otp-version: '28'
+        install-rebar: false
         install-hex: false
 
     - name: Check code formatting
