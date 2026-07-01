@@ -1,10 +1,12 @@
 # nifpp: C++ Wrapper for Erlang NIF API
 
-[![Build Status](https://github.com/saleyn/nifpp/actions/workflows/ci.yml/badge.svg)](https://github.com/saleyn/nifpp/actions)
+[![build](https://github.com/saleyn/nifpp/actions/workflows/ci.yml/badge.svg)](https://github.com/saleyn/nifpp/actions)
 
 ## Introduction
 
 **nifpp** is a comprehensive, modern C++ wrapper for the Erlang NIF API that makes writing NIFs safer, more maintainable, and more productive.
+
+See [Reference Guide](REFERENCE.md).
 
 ### Key Features
 
@@ -29,9 +31,9 @@ nifpp has been significantly enhanced with:
 - **Custom Known Atoms**: Macro-based system for defining custom atoms initialized automatically
 - **Comprehensive Testing**: 139+ tests ensuring production reliability
 
-See [TEMPLATE_CONSOLIDATION.md](TEMPLATE_CONSOLIDATION.md) and [TYPE_CHECKING_AND_MEMORY.md](TYPE_CHECKING_AND_MEMORY.md) for detailed documentation.
-
-See Erlang NIF documentation [here](https://www.erlang.org/doc/man/erl_nif).
+See also:
+- Erlang NIF documentation [here](https://www.erlang.org/doc/man/erl_nif).
+- [Reference Guide](REFERENCE.md).
 
 NOTE: the C++ `nifpp.h` file is deprecated and replaced by `enif.hpp`.
 
