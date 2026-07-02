@@ -12,14 +12,12 @@ endif
 # On Windows/MSYS2, try converting the path if it looks like a Windows path
 ifeq ($(OS),Windows_NT)
   ifneq ($(findstring :,$(ERLANG_PATH)),)
-    # This looks like a Windows path (contains :), try converting with cygpath
     ERLANG_PATH := $(shell cygpath -u "$(ERLANG_PATH)" 2>/dev/null || echo "$(ERLANG_PATH)")
   endif
 endif
 
 NIF_INCLUDE:=-I../ $(if $(ERLANG_PATH),-I$(ERLANG_PATH),)
 
-# Debug output for CI troubleshooting
 $(info DEBUG: ERLANG_INCLUDE=$(ERLANG_INCLUDE))
 $(info DEBUG: ERLANG_PATH=$(ERLANG_PATH))
 $(info DEBUG: NIF_INCLUDE=$(NIF_INCLUDE))
@@ -34,7 +32,6 @@ CPPFLAGS = -std=c++20
 LD_COMMON_FLAGS = -flto
 
 ifeq ($(disassemble),)
-  # Windows-specific settings
   ifeq ($(OS),Windows_NT)
     LDFLAGS += -shared
     LIB_EXT = .dll
@@ -54,12 +51,12 @@ all: compile
 
 # Define Linux-specific targets
 ifeq ($(shell uname -s 2>/dev/null || echo unknown),Linux)
-  LINUX_TARGETS = selecttest.so$(SFX) select_wrapper_test.so$(SFX) selecttest.beam select_wrapper_test.beam
+  LINUX_TARGETS = selecttest$(LIB_EXT) select_wrapper_test$(LIB_EXT) selecttest.beam select_wrapper_test.beam
 else
   LINUX_TARGETS =
 endif
 
-compile: nifpptest.so tuple_twiddle_cpp.so$(SFX) tuple_twiddle_c.so$(SFX) \
+compile: nifpptest$(LIB_EXT) tuple_twiddle_cpp$(LIB_EXT) tuple_twiddle_c$(LIB_EXT) \
   nifpptest.beam tuple_twiddle_cpp.beam tuple_twiddle_c.beam $(LINUX_TARGETS)
 
 ast: tuple_twiddle_cpp.cpp ../enif.hpp
@@ -77,24 +74,24 @@ selecttest.o: selecttest.cpp ../enif.hpp
 	$(CXX) $(COMMON_FLAGS) $(CPPFLAGS) -fpermissive -c $<
 endif
 
-nifpptest.so: nifpptest.o nifpptest_2tu.o
+nifpptest$(LIB_EXT): nifpptest.o nifpptest_2tu.o
 	$(CXX) $(LDFLAGS) $(LD_COMMON_FLAGS) -o $@ $^
 
 ifeq ($(shell uname -s 2>/dev/null || echo unknown),Linux)
-selecttest.so: selecttest.o
+selecttest$(LIB_EXT): selecttest.o
 	$(CXX) $(LDFLAGS) $(LD_COMMON_FLAGS) -o $@ $^
 
-select_wrapper_test.so: select_wrapper_test.o
+select_wrapper_test$(LIB_EXT): select_wrapper_test.o
 	$(CXX) $(LDFLAGS) $(LD_COMMON_FLAGS) -o $@ $^
 endif
 
-mmap_binary.so: mmap_binary.o
+mmap_binary$(LIB_EXT): mmap_binary.o
 	$(CXX) $(LDFLAGS) $(LD_COMMON_FLAGS) -lboost_iostreams-mt -o $@ $<
 
-tuple_twiddle_c.so: tuple_twiddle_c.o
+tuple_twiddle_c$(LIB_EXT): tuple_twiddle_c.o
 	$(CC) $(LDFLAGS) $(LD_COMMON_FLAGS) -o $@ $<
 
-tuple_twiddle_cpp.so: tuple_twiddle_cpp.o
+tuple_twiddle_cpp$(LIB_EXT): tuple_twiddle_cpp.o
 	$(CXX) $(LDFLAGS) $(LD_COMMON_FLAGS) -o $@ $<
 
 %.beam: %.erl
@@ -108,7 +105,7 @@ endif
 	erl -noshell -noinput -s nifpptest
 
 clean:
-	rm -f *.so* *.beam *.o *.dump *.asm *.ast
+	rm -f *.so* *.dll *.beam *.o *.dump *.asm *.ast
 
 disassemble:
 	objdump -w -d --section=.text.twiddle_nif tuple_twiddle_cpp.o > tuple_twiddle_cpp.asm
