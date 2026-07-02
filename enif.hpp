@@ -181,7 +181,7 @@ inline void register_atom(atom* atom_ptr, const char* name)
   struct atom_init_##am_atom_name {                                                                \
     atom_init_##am_atom_name()                                                                     \
     {                                                                                              \
-      ::nifpp::detail::register_atom(&am_atom_name, #am_atom_name + 3);                            \
+      ::nifpp::detail::register_atom(&am_atom_name, &(#am_atom_name)[3]);                          \
     }                                                                                              \
   };                                                                                               \
   static atom_init_##am_atom_name atom_init_instance_##am_atom_name;                               \
