@@ -14,5 +14,23 @@ check:
 	fi
 	clang-format -i enif.hpp
 
+bump-version:
+	@MAJOR=$$(grep 'NIFPP_MAJOR_VSN' enif.hpp | grep -o '[0-9]*'); \
+	MINOR=$$(grep 'NIFPP_MINOR_VSN' enif.hpp | grep -o '[0-9]*'); \
+	NEW_MINOR=$$((MINOR + 1)); \
+	TAG="$$MAJOR.$$NEW_MINOR"; \
+	echo "Bumping version $$MAJOR.$$MINOR -> $$TAG"; \
+	printf "Commit change and create tag $$TAG? [y/N] "; \
+	read ACK; \
+	if [ "$$ACK" = "y" ] || [ "$$ACK" = "Y" ]; then \
+		sed -i "s/NIFPP_MINOR_VSN = $$MINOR/NIFPP_MINOR_VSN = $$NEW_MINOR/" enif.hpp; \
+		git add enif.hpp; \
+		git commit -m "Bump version to $$TAG"; \
+		git tag "$$TAG"; \
+		echo "Tagged $$TAG"; \
+	else \
+		echo "Aborted."; \
+	fi
+
 CheckOptions:
-.PHONY: test
+.PHONY: test bump-version
