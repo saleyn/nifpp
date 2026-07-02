@@ -13,7 +13,7 @@ AlignOperands: true
 AllowAllParametersOfDeclarationOnNextLine: true
 AllowShortBlocksOnASingleLine: Empty
 AllowShortCaseLabelsOnASingleLine: false
-AllowShortFunctionsOnASingleLine: Inline
+AllowShortFunctionsOnASingleLine: Empty
 AllowShortIfStatementsOnASingleLine: WithoutElse # Options: false, Never, WithoutElse, Always
 AllowShortLambdasOnASingleLine: All
 AllowShortLoopsOnASingleLine: true
@@ -26,6 +26,7 @@ BreakBeforeBinaryOperators: None
 BreakBeforeBraces: Custom
 BraceWrapping:
   AfterFunction: true
+  AfterControlStatement: Never
   SplitEmptyFunction: false
   SplitEmptyRecord: false
   SplitEmptyNamespace: false

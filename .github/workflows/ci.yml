@@ -54,7 +54,8 @@ jobs:
 
     - name: Verify Erlang include path
       shell: bash
-      run: echo "Erlang root: $(erl -noshell -eval 'io:format("~s/usr/include~n", [code:root_dir()]), halt().')"
+      run: |
+        echo "Erlang root: $(erl -noshell -eval 'io:format("~s/usr/include~n", [code:root_dir()]), halt().')"
 
     - name: Linux - Install build dependencies
       if: matrix.os == 'ubuntu-latest'

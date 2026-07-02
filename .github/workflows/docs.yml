@@ -1,8 +1,10 @@
 name: Deploy Documentation
 
 on:
-  push:
+  workflow_run:
+    workflows: ["CI"]
     branches: [ main, master ]
+    types: [ completed ]
   workflow_dispatch:
 
 permissions:
@@ -18,6 +20,7 @@ jobs:
   build-docs:
     name: Build Documentation
     runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
 
     steps:
     - name: Checkout
@@ -44,6 +47,7 @@ jobs:
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>NIFPP Documentation</title>
             <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.2.0/github-markdown-light.min.css">
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
             <style>
                 .markdown-body {
                     box-sizing: border-box;
@@ -136,7 +140,7 @@ jobs:
           --from markdown \
           --to html \
           --wrap=preserve \
-          --highlight-style=pygments >> _site/index.html
+          >> _site/index.html
 
         # Close HTML tags
         cat >> _site/index.html << 'EOF'
@@ -148,6 +152,8 @@ jobs:
                 <p><a href="https://github.com/saleyn/nifpp/issues">Report issues</a> | <a href="https://github.com/saleyn/nifpp/blob/main/REFERENCE.md">Edit this page</a></p>
             </div>
 
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+            <script>hljs.highlightAll();</script>
             <script>
                 // Set current date
                 document.getElementById('build-date').textContent = new Date().toUTCString();
