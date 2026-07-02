@@ -33,7 +33,7 @@ jobs:
 
     steps:
     - name: Checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
 
     - name: Windows - Setup MSYS2
       if: matrix.os == 'windows-latest'
@@ -75,7 +75,7 @@ jobs:
         fi
 
     - name: Cache build artifacts
-      uses: actions/cache@v3
+      uses: actions/cache@v6
       with:
         path: |
           test/*.o
@@ -195,7 +195,7 @@ jobs:
 
     steps:
     - name: Checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
 
     - name: Install clang-tidy and clang-format
       run: |
@@ -237,7 +237,7 @@ jobs:
 
     steps:
     - name: Checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
 
     - name: Create Release
       uses: actions/create-release@v1
