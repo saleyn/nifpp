@@ -60,7 +60,7 @@ namespace nifpp {
 // Library version
 
 static constexpr const int NIFPP_MAJOR_VSN = 3;
-static constexpr const int NIFPP_MINOR_VSN = 0;
+static constexpr const int NIFPP_MINOR_VSN = 1;
 
 struct TERM {
   ERL_NIF_TERM v;
