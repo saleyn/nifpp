@@ -1,6 +1,6 @@
-![Banner](https://github.com/saleyn/nifpp/blob/main/assets/nifpp-banner.png?raw=true)
+![nifpp](https://github.com/saleyn/nifpp/blob/main/assets/nifpp-banner.png?raw=true)
 
-# nifpp: C++ Wrapper for Erlang NIF API
+# Modern C++ Wrapper for Erlang NIF API
 
 [![build](https://github.com/saleyn/nifpp/actions/workflows/ci.yml/badge.svg)](https://github.com/saleyn/nifpp/actions)
 
