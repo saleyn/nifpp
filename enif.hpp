@@ -1459,7 +1459,7 @@ resource_ptr<T> construct_resource_with_events(resource_events<T> const& events,
 template <typename T>
 resource_ptr<T> construct_resource_with_events(resource_events<T> const& events, T obj)
 {
-  return construct_resource_with_events<T>(events, std::move(obj));
+  return construct_resource_with_events<T, T>(events, std::move(obj));
 }
 
 template <typename T, typename... Args>
