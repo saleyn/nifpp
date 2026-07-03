@@ -60,7 +60,7 @@ namespace nifpp {
 // Library version
 
 static constexpr const int NIFPP_MAJOR_VSN = 3;
-static constexpr const int NIFPP_MINOR_VSN = 1;
+static constexpr const int NIFPP_MINOR_VSN = 0;
 
 struct TERM {
   ERL_NIF_TERM v;
@@ -181,7 +181,7 @@ inline void register_atom(atom* atom_ptr, const char* name)
   struct atom_init_##am_atom_name {                                                                \
     atom_init_##am_atom_name()                                                                     \
     {                                                                                              \
-      ::nifpp::detail::register_atom(&am_atom_name, &(#am_atom_name)[3]);                          \
+      ::nifpp::detail::register_atom(&am_atom_name, #am_atom_name + 3);                            \
     }                                                                                              \
   };                                                                                               \
   static atom_init_##am_atom_name atom_init_instance_##am_atom_name;                               \
@@ -1443,6 +1443,23 @@ resource_ptr<T> construct_resource_with_events(resource_events<T> const& events,
   // ctor succeeded, enable dtor
   p->constructed = true;
   return rptr;
+}
+
+// Convenience overload: construct from a value of T directly.
+// The value is move-constructed into the resource allocation.
+//
+// Example:
+//   resource_events<SlotRef> events{
+//     [](SlotRef* ref, ErlNifEnv* env, ErlNifPid*, ErlNifMonitor*) {
+//       ref->ctx->on_owner_down(env, ref->stripe_id, ref->slot_id);
+//     }
+//   };
+//   auto ref = construct_resource_with_events<SlotRef>(
+//     events, SlotRef{ctx, stripe_id, slot_id});
+template <typename T>
+resource_ptr<T> construct_resource_with_events(resource_events<T> const& events, T obj)
+{
+  return construct_resource_with_events<T>(events, std::move(obj));
 }
 
 template <typename T, typename... Args>
