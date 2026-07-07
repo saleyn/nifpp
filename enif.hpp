@@ -1253,6 +1253,13 @@ public:
     return e;
   }
 
+  // Clear environment (not that on destruction it still needs to be freed)
+  void clear()
+  {
+    if (m_env) [[likely]]
+      enif_clear_env(m_env);
+  }
+
 private:
   ErlNifEnv* m_env;
 };
